@@ -20,7 +20,7 @@ const baseHp = st => Math.round(14 * Math.pow(1.30, st - 1));
 const hpOf = st => baseHp(st) * (isBoss(st) ? 5 : 1);
 const rewardOf = st => Math.ceil(baseHp(st) * 0.6) * (isBoss(st) ? 4 : 1);
 const spawnLvl = best => Math.max(1, best - 5);       // welche Stufe der Kauf-Button liefert
-const costOf = (lvl, units) => Math.floor(12 * Math.pow(2.3, lvl - 1) * (1 + 0.06 * units));   // units = Wert aller aktuell besessenen Schleime, gemessen in Schleimen der Kauf-Stufe (eine Stufe höher zählt genau doppelt)
+const costOf = (lvl, units) => Math.floor(12 * Math.pow(2.3, lvl - 1) * (1 + 0.022 * units));   // units = Wert aller aktuell besessenen Schleime, gemessen in Schleimen der Kauf-Stufe (eine Stufe höher zählt genau doppelt)
 const CHEST_EVERY = 5;                               // Kisten öffnen sich nach so vielen Siegen
 
 const SUFFIX = ["", "k", "m", "b", "t", "qa", "qi", "sx", "sp", "oc", "no", "dc", "ud", "dd"];

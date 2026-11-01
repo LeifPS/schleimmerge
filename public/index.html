@@ -30,7 +30,7 @@ function fmt(n) {
   const e = Math.min(SUFFIX.length - 1, Math.floor(Math.log10(n) / 3));
   if (e >= SUFFIX.length - 1 && n >= 1e42) return n.toExponential(2).replace("+", "");
   const v = n / Math.pow(1000, e);
-  return (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2)).replace(/\.?0+$/, "") + SUFFIX[e];
+  return (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2)).replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "") + SUFFIX[e];
 }
 "use strict";
 /* ===== Hilfsfunktionen und der handgezeichnete Look (wie in Tonlinge: wackelnde Doppellinie in Tintenblau) ===== */

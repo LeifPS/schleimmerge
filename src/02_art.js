@@ -72,7 +72,9 @@ const MATS = [
 ];
 const wType = l => (l - 1) % 12, wTier = l => Math.min(5, Math.floor((l - 1) / 12));
 function slimeName(l) { const t = WTYPES[wType(l)]; return WTIERS[wTier(l)] + t; }
-const WP_W = 256, WP_U = 190, WP_OX = 128, WP_OY = 205;
+const WP_W = 320, WP_U = 190, WP_OX = 160, WP_OY = 262;
+/* Wo der Kopf der Waffe sitzt (für Leuchten, Flammen, Funken), in Einheiten ab dem Griff */
+const HEAD = [[0, -.72], [0, -.66], [.2, -.68], [0, -.84], [0, -.76], [0, -.82], [0, -.4], [0, -.74], [0, -.72], [0, -.74], [0, -.68], [.22, -.78]];
 function weaponShape(c, g, type, M) {
   const shaft = (y0, y1, w) => { c.beginPath(); c.moveTo(-w, y0); c.lineTo(w, y0); c.lineTo(w * .9, y1); c.lineTo(-w * .9, y1); c.closePath(); FS(c, M.h); };
   const grip = () => { g.strokeStyle = hexA(INK, .5); g.lineWidth = .018; for (let i = 0; i < 3; i++) { g.beginPath(); g.moveTo(-.04, -.02 + i * .05); g.lineTo(.04, .02 + i * .05); g.stroke(); } g.strokeStyle = INK; g.lineWidth = .03; };
@@ -122,17 +124,49 @@ function weaponShape(c, g, type, M) {
       g.strokeStyle = M.d; g.lineWidth = .02; g.beginPath(); g.moveTo(.1, -.82); g.quadraticCurveTo(.4, -.84, .55, -.62); g.stroke(); g.strokeStyle = INK; g.lineWidth = .03; break;
   }
 }
+function flameAt(c, g, x, y, h, w, outer, inner) {
+  c.lineWidth = .03; c.beginPath(); c.moveTo(x - w, y); c.bezierCurveTo(x - w * 1.1, y - h * .4, x - w * .3, y - h * .55, x, y - h); c.bezierCurveTo(x + w * .3, y - h * .5, x + w * 1.2, y - h * .35, x + w, y); c.closePath(); FS(c, outer);
+  c.beginPath(); c.moveTo(x - w * .5, y); c.quadraticCurveTo(x - w * .5, y - h * .4, x, y - h * .62); c.quadraticCurveTo(x + w * .5, y - h * .35, x + w * .5, y); c.closePath(); c.fillStyle = inner; c.fill();
+}
+function diamondAt(c, g, x, y, r, fill) { c.lineWidth = .025; c.beginPath(); c.moveTo(x, y - r * 1.5); c.lineTo(x + r, y); c.lineTo(x, y + r * 1.5); c.lineTo(x - r, y); c.closePath(); FS(c, fill); g.strokeStyle = "rgba(255,255,255,.7)"; g.lineWidth = .015; g.beginPath(); g.moveTo(x - r * .2, y - r * .9); g.lineTo(x + r * .2, y - r * .1); g.stroke(); g.strokeStyle = INK; }
 function weaponSprite(l) {
   return weapCache[l] || (weapCache[l] = makeSprite(WP_W, WP_W, WP_OX, WP_OY, WP_U, l * .53 + 3, (c, g) => {
-    const t = wTier(l), M = MATS[t];
-    if (t >= 4) { const gr = g.createRadialGradient(0, -.7, .02, 0, -.7, .5); gr.addColorStop(0, t === 4 ? "rgba(255,160,60,.5)" : "rgba(210,140,255,.5)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(-.7, -1.2, 1.4, 1.4); }
-    c.lineWidth = .04; weaponShape(c, g, wType(l), M);
+    const t = wTier(l), type = wType(l), M = Object.assign({}, MATS[t]), ax = HEAD[type][0], ay = HEAD[type][1];
+    const TCOL = ["", "", "", "120,230,255", "255,150,50", "210,130,255"];
+    /* Hinter der Waffe: Leuchten und je Stufe eigene Effekte */
+    if (t >= 3) { const gr = g.createRadialGradient(ax, ay, .02, ax, ay, .62); gr.addColorStop(0, "rgba(" + TCOL[t] + ",.5)"); gr.addColorStop(1, "rgba(" + TCOL[t] + ",0)"); g.fillStyle = gr; g.fillRect(-.9, -1.4, 1.8, 1.7); }
+    if (t === 3) { for (const d of [[-.42, -.2, .06], [.4, .1, .07], [-.36, .3, .045], [.1, -.3, .05], [.46, -.32, .04], [-.12, .22, .035]]) diamondAt(c, g, ax + d[0], ay + d[1], d[2], "#bff4ff"); }
+    if (t === 4) { const fl = [[-.36, .14, .3, .08], [-.19, .08, .44, .1], [0, .03, .58, .125], [.19, .08, .42, .1], [.36, .14, .28, .08]]; for (const f of fl) flameAt(c, g, ax + f[0], ay + f[1], f[2], f[3], "#ff5a1c", "#ffc13a"); }
+    if (t === 5) { g.save(); g.translate(ax, ay); g.rotate(-.45); g.lineCap = "round"; for (const [col, w] of [[INK, .075], ["#6fe0ff", .045], ["#f0ffff", .014]]) { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.ellipse(0, 0, .46, .15, 0, 0, 7); g.stroke(); } g.restore(); }
+    /* Material mit Verlauf entlang der Waffe */
+    if (t >= 3) {
+      const gm = g.createLinearGradient(0, ay - .42, 0, ay + .5);
+      const ss = t === 3 ? ["#f4feff", "#8fe9ff", "#3fb6d6", "#2a7fb8"] : t === 4 ? ["#ffd23a", "#ff9a2a", "#e8481c", "#a82014"] : ["#ffeaff", "#e0a8ff", "#9a55f0", "#4a2aa8"];
+      gm.addColorStop(0, ss[0]); gm.addColorStop(.3, ss[1]); gm.addColorStop(.65, ss[2]); gm.addColorStop(1, ss[3]); M.m = gm; M.d = ss[3];
+    }
+    c.lineWidth = .04; weaponShape(c, g, type, M);
+    /* Licht und Schatten, nur auf der Waffe selbst */
     g.save(); g.globalCompositeOperation = "source-atop";
-    const sh = g.createLinearGradient(-.32, 0, .32, 0); sh.addColorStop(0, "rgba(255,255,255,.55)"); sh.addColorStop(.38, "rgba(255,255,255,0)"); sh.addColorStop(1, "rgba(10,10,60,.34)"); g.fillStyle = sh; g.fillRect(-.8, -1.3, 1.6, 1.6);
-    const tp = g.createLinearGradient(0, -1, 0, .1); tp.addColorStop(0, "rgba(255,255,255,.22)"); tp.addColorStop(1, "rgba(0,0,40,.12)"); g.fillStyle = tp; g.fillRect(-.8, -1.3, 1.6, 1.6);
+    const sh = g.createLinearGradient(-.32, 0, .32, 0); sh.addColorStop(0, "rgba(255,255,255,.55)"); sh.addColorStop(.38, "rgba(255,255,255,0)"); sh.addColorStop(1, "rgba(10,10,60,.34)"); g.fillStyle = sh; g.fillRect(-.9, -1.4, 1.8, 1.7);
+    const tp = g.createLinearGradient(0, -1, 0, .1); tp.addColorStop(0, "rgba(255,255,255,.22)"); tp.addColorStop(1, "rgba(0,0,40,.12)"); g.fillStyle = tp; g.fillRect(-.9, -1.4, 1.8, 1.7);
+    g.lineCap = "round";
+    if (t === 3) { for (let i = 0; i < 7; i++) { g.strokeStyle = i % 2 ? "rgba(255,255,255,.65)" : "rgba(0,70,140,.35)"; g.lineWidth = .02; g.beginPath(); g.moveTo(ax - .45 + i * .15, ay - .5); g.lineTo(ax - .25 + i * .15, ay + .5); g.stroke(); }
+      g.fillStyle = "rgba(255,255,255,.35)"; g.beginPath(); g.moveTo(ax - .1, ay - .5); g.lineTo(ax + .02, ay - .5); g.lineTo(ax - .02, ay + .2); g.lineTo(ax - .14, ay + .2); g.closePath(); g.fill(); }
+    if (t === 4) { g.strokeStyle = "rgba(255,230,120,.6)"; g.lineWidth = .016; for (let i = -1; i <= 1; i++) { g.beginPath(); g.moveTo(ax + i * .12, ay + .45); g.bezierCurveTo(ax + i * .12 - .08, ay + .2, ax + i * .12 + .08, ay, ax + i * .12 - .02, ay - .45); g.stroke(); }
+      const hg = g.createRadialGradient(ax, ay, .02, ax, ay, .3); hg.addColorStop(0, "rgba(255,240,160,.4)"); hg.addColorStop(1, "rgba(255,240,160,0)"); g.fillStyle = hg; g.fillRect(ax - .4, ay - .4, .8, .8); }
+    if (t === 5) { for (let i = 0; i < 8; i++) { g.strokeStyle = i % 2 ? "rgba(120,240,255,.55)" : "rgba(255,150,255,.5)"; g.lineWidth = .028; g.beginPath(); g.moveTo(ax - .6 + i * .16, ay - .5); g.lineTo(ax - .3 + i * .16, ay + .5); g.stroke(); }
+      g.fillStyle = "rgba(255,255,255,.8)"; for (const d of [[-.1, -.2], [.12, .05], [-.04, .22], [.08, -.38]]) { sparklePath(g, ax + d[0], ay + d[1], .035); g.fill(); } }
+    if (t >= 2) { g.strokeStyle = "rgba(255,255,255,.7)"; g.lineWidth = .022; g.beginPath(); g.moveTo(-.025, -.95); g.lineTo(-.025, -.45); g.stroke(); }
     g.restore();
-    if (t >= 2) { g.fillStyle = "rgba(255,255,255,.95)"; sparklePath(g, .12, -.85, .05); g.fill(); }
-    if (t >= 3) { g.fillStyle = "rgba(255,255,255,.9)"; sparklePath(g, -.14, -.62, .035); g.fill(); }
+    /* Vor der Waffe: Funken, vordere Hälfte des Energierings */
+    g.strokeStyle = INK;
+    if (t === 5) { g.save(); g.translate(ax, ay); g.rotate(-.45); g.lineCap = "round"; for (const [col, w] of [[INK, .075], ["#6fe0ff", .045], ["#f0ffff", .014]]) { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.ellipse(0, 0, .46, .15, 0, .12, Math.PI - .12); g.stroke(); }
+      for (const a of [.12, Math.PI - .12]) { const ox = Math.cos(a) * .46, oy = Math.sin(a) * .15; g.fillStyle = "#fff"; g.strokeStyle = INK; g.lineWidth = .025; g.beginPath(); g.arc(ox, oy, .045, 0, 7); g.fill(); g.stroke(); }
+      g.restore(); g.fillStyle = "#ffe27a"; starPath(g, ax + .3, ay - .36, .07, .03, 0); g.fill(); g.fillStyle = "#ffd6ff"; starPath(g, ax - .32, ay - .26, .055, .024, .3); g.fill(); }
+    g.fillStyle = "rgba(255,255,255,.95)";
+    if (t === 2) { sparklePath(g, ax + .12, ay - .12, .05); g.fill(); }
+    if (t === 3) { for (const d of [[.2, -.3, .07], [-.22, -.1, .05], [.1, .2, .045], [-.12, -.42, .04]]) { sparklePath(g, ax + d[0], ay + d[1], d[2]); g.fill(); } }
+    if (t === 4) { for (const d of [[-.2, -.5, .018], [.16, -.62, .022], [.04, -.74, .016], [-.08, -.56, .014], [.26, -.44, .015]]) { g.fillStyle = "#ffd34a"; g.beginPath(); g.arc(ax + d[0], ay + d[1], d[2], 0, 7); g.fill(); } }
   }, .006));
 }
 

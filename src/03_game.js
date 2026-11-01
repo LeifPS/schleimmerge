@@ -225,7 +225,7 @@ function swingAng(r) {   // Ausholen, Zuschlagen, Zurück
 }
 /* Bewegte Effekte der Kristall-, Feuer- und Magiewaffen: pulsierendes Leuchten, Funkeln, aufsteigende Glut, kreisende Sterne */
 function weaponFx(c, l, t, u) {
-  const a = HEAD[wType(l)], ax = a[0] * u, ay = a[1] * u, tm = time, pr = .5 + .5 * Math.sin(tm * 4 + l), col = t === 3 ? "120,230,255" : t === 4 ? "255,150,50" : "210,130,255", hc = t === 5 ? hsl(tm * 90 + l * 20, 1, .6) : t === 6 ? hsl(40 + Math.sin(tm * 2 + l) * 25, 1, .68) : null;
+  const a = HEAD[wType(l)], ax = a[0] * u, ay = a[1] * u, tm = time, pr = .5 + .5 * Math.sin(tm * 4 + l), col = t === 3 ? "120,230,255" : t === 4 ? "255,150,50" : "210,130,255", hc = t === 5 ? hsl(tm * 90 + l * 20, 1, .6) : t === 6 ? hsl(205 + Math.sin(tm * 2 + l) * 12, 1, .72) : null;
   c.save(); c.globalCompositeOperation = "lighter"; const rg = c.createRadialGradient(ax, ay, 0, ax, ay, u * .5); if (hc) { rg.addColorStop(0, hexA(hc, .22 + .2 * pr)); rg.addColorStop(1, hexA(hc, 0)); } else { rg.addColorStop(0, "rgba(" + col + "," + (.14 + .14 * pr) + ")"); rg.addColorStop(1, "rgba(" + col + ",0)"); } c.fillStyle = rg; c.fillRect(ax - u * .5, ay - u * .5, u, u); c.restore();
   c.save();
   if (t === 3) { for (let i = 0; i < 5; i++) { const ph = (tm * 1.1 + i * .2 + l * .13) % 1; c.globalAlpha = Math.sin(ph * Math.PI); c.fillStyle = "#fff"; sparklePath(c, ax + Math.cos(i * 2.1 + l) * u * .32, ay + Math.sin(i * 1.7 + l) * u * .32, u * .06 * (.4 + ph)); c.fill(); } }
@@ -237,9 +237,20 @@ function weaponFx(c, l, t, u) {
   }
   else {
     c.globalCompositeOperation = "lighter";
-    for (let i = 0; i < 8; i++) { const ang = tm * (i % 2 ? -1.9 : 1.6) + i * .785, rr = u * (.34 + .1 * (i % 2)), tilt = i % 2 ? .5 : -.5, ex = Math.cos(ang) * rr, ey = Math.sin(ang) * rr * .3; c.globalAlpha = .8 + .2 * Math.sin(tm * 6 + i); c.fillStyle = i % 3 ? "#fff3a8" : "#ffb4ee"; starPath(c, ax + ex * Math.cos(tilt) - ey * Math.sin(tilt), ay + ex * Math.sin(tilt) + ey * Math.cos(tilt), u * .055, u * .022, ang); c.fill(); }
-    for (let i = 0; i < 14; i++) { const ph = (tm * .9 + i / 14) % 1, a = i * 2.4 + l * 1.3, rr = u * (.1 + ph * .52); c.globalAlpha = Math.sin(ph * Math.PI); c.fillStyle = i % 3 === 0 ? "#9ff0ff" : i % 3 === 1 ? "#fff3a8" : "#ffb4ee"; sparklePath(c, ax + Math.cos(a) * rr, ay + Math.sin(a) * rr * .7, u * .055 * (1 - ph * .5)); c.fill(); }
+    for (let i = 0; i < 6; i++) { const ang = tm * (i % 2 ? -1.5 : 1.2) + i * 1.047, rr = u * (.55 + .08 * (i % 2)), ex = Math.cos(ang) * rr, ey = Math.sin(ang) * rr * .3; c.globalAlpha = .8 + .2 * Math.sin(tm * 6 + i); c.fillStyle = i % 2 ? "#ffffff" : "#bfe4ff"; starPath(c, ax + ex, ay + ey - u * .05, u * .05, u * .02, ang); c.fill(); }
+    for (let i = 0; i < 14; i++) { const ph = (tm * .9 + i / 14) % 1, a = i * 2.4 + l * 1.3, rr = u * (.1 + ph * .52); c.globalAlpha = Math.sin(ph * Math.PI); c.fillStyle = i % 3 === 0 ? "#ffffff" : i % 3 === 1 ? "#9fdcff" : "#d6ecff"; sparklePath(c, ax + Math.cos(a) * rr, ay + Math.sin(a) * rr * .7, u * .055 * (1 - ph * .5)); c.fill(); }
     const cp = (tm * .55 + l * .17) % 1; if (cp < .4) { const k = cp / .4; c.globalAlpha = Math.sin(k * Math.PI); const sx = ax - u * .5 + k * u, sy = ay - u * .55 + k * u * .3, tg = c.createLinearGradient(sx, sy, sx - u * .3, sy - u * .09); tg.addColorStop(0, "rgba(255,255,255,.95)"); tg.addColorStop(1, "rgba(255,255,255,0)"); c.strokeStyle = tg; c.lineWidth = u * .02; c.beginPath(); c.moveTo(sx, sy); c.lineTo(sx - u * .3, sy - u * .09); c.stroke(); }
+    /* Planeten, die um den Waffenkopf kreisen */
+    c.globalCompositeOperation = "source-over"; c.lineJoin = "round";
+    const planets = [[.55, .2, .1, 1.1, 0, "#e8f6ff", "#6fb4ff", "#2446b8", true], [.38, .13, .055, -1.7, 2.1, "#ffffff", "#c4e2ff", "#6a8ee0", false], [.7, .24, .04, .8, 4.2, "#d8f0ff", "#8ac8ff", "#3a62d0", false]];
+    for (const P of planets) {
+      const a = tm * P[3] + P[4] + l, dp = Math.sin(a), px = ax + Math.cos(a) * P[0] * u, py = ay + dp * P[1] * u - u * .04, r = u * P[2] * (.85 + .15 * dp);
+      c.globalAlpha = 1; const sg = c.createRadialGradient(px - r * .35, py - r * .35, r * .1, px, py, r); sg.addColorStop(0, P[5]); sg.addColorStop(.5, P[6]); sg.addColorStop(1, P[7]);
+      if (P[8]) { c.strokeStyle = INK; c.lineWidth = u * .03; c.beginPath(); c.ellipse(px, py, r * 1.75, r * .5, -.35, Math.PI, 2 * Math.PI); c.stroke(); c.strokeStyle = "#cfeaff"; c.lineWidth = u * .016; c.beginPath(); c.ellipse(px, py, r * 1.75, r * .5, -.35, Math.PI, 2 * Math.PI); c.stroke(); }
+      c.fillStyle = sg; c.beginPath(); c.arc(px, py, r, 0, 7); c.fill(); c.strokeStyle = INK; c.lineWidth = u * .016; c.stroke();
+      c.fillStyle = "rgba(255,255,255,.55)"; c.beginPath(); c.ellipse(px - r * .35, py - r * .35, r * .22, r * .13, -.6, 0, 7); c.fill();
+      if (P[8]) { c.strokeStyle = INK; c.lineWidth = u * .03; c.beginPath(); c.ellipse(px, py, r * 1.75, r * .5, -.35, 0, Math.PI); c.stroke(); c.strokeStyle = "#cfeaff"; c.lineWidth = u * .016; c.beginPath(); c.ellipse(px, py, r * 1.75, r * .5, -.35, 0, Math.PI); c.stroke(); }
+    }
   }
   c.restore();
 }

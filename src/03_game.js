@@ -4,7 +4,7 @@ const cv = $("cv"), ctx = cv.getContext("2d");
 let VW = 0, VH = 0, DPR = 1, L = null, time = 0;
 const SAVEKEY = "schleimmerge.v1";
 const newLane = () => ({ lvl: 0, stage: 1, hp: hpOf(1), chest: 0 });
-const owned = () => S.grid.filter(v => v > 0).length + S.lanes.filter(l => l.lvl > 0).length;
+const ownedUnits = sl => { let u = 0; for (const v of S.grid) if (v > 0) u += Math.pow(2, v - sl); for (const l of S.lanes) if (l.lvl > 0) u += Math.pow(2, l.lvl - sl); return u; };
 const fresh = () => ({ v: 1, coins: 30, grid: [1, 1, 0, 0, 0, 0, 0, 0, 0], lanes: [newLane(), newLane(), newLane()], buys: {}, best: 1, kills: 0, merges: 0, saved: Date.now() });
 function load() {
   try {
@@ -163,7 +163,7 @@ function apply(src, dst) {
   else { setL(dst, a); setL(src, b); popOf(dst)[dst.i] = .6; popOf(src)[src.i] = .6; sfx.move(); }
 }
 function buy() {
-  const sl = spawnLvl(S.best), cost = costOf(sl, owned()), b = L.buy, fc = freeCell();
+  const sl = spawnLvl(S.best), cost = costOf(sl, ownedUnits(sl)), b = L.buy, fc = freeCell();
   if (fc < 0) { buyShake = 1; say("Kein Platz mehr", b.x + b.w / 2, b.y - 10, "#ffb0b0", 24); sfx.fail(); return; }
   if (S.coins < cost) { buyShake = 1; say("Zu wenig Münzen", b.x + b.w / 2, b.y - 10, "#ffb0b0", 24); sfx.fail(); return; }
   S.coins -= cost; S.buys[sl] = (S.buys[sl] | 0) + 1; S.grid[fc] = sl; gridPop[fc] = 1; const c = L.cells[fc]; puffs(c.x + c.w / 2, c.y + c.h * .8, 5, c.w); sparks(c.x + c.w / 2, c.y + c.h / 2, 6, "#bff7ff", 120); sfx.buy();
@@ -322,7 +322,7 @@ function drawLanes() {
   }
 }
 function drawBuy() {
-  const b = L.buy, sl = spawnLvl(S.best), cost = costOf(sl, owned()), can = S.coins >= cost && freeCell() >= 0, img = buyPress ? btnDn : btnUp, shx = Math.sin(time * 60) * buyShake * 6, dy = buyPress ? 6 : 0;
+  const b = L.buy, sl = spawnLvl(S.best), cost = costOf(sl, ownedUnits(sl)), can = S.coins >= cost && freeCell() >= 0, img = buyPress ? btnDn : btnUp, shx = Math.sin(time * 60) * buyShake * 6, dy = buyPress ? 6 : 0;
   ctx.drawImage(img, b.x - img.pad + shx, b.y - img.pad, img.width / DPR, img.height / DPR);
   if (!can) { ctx.save(); ctx.fillStyle = "rgba(60,70,120,.42)"; rr(ctx, b.x + shx, b.y + dy, b.w, b.h, b.h * .28); ctx.fill(); ctx.restore(); }
   drawSlime(sl, b.x + b.h * .72 + shx, b.y + dy + b.h * .86, b.h * .92, { ph: 1 });

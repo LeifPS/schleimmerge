@@ -1,0 +1,4 @@
+:root{--ink:#1d2742}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#2a3350;color:var(--ink);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;overscroll-behavior:none}
+canvas{display:block;width:100vw;height:100vh;height:100dvh;touch-action:none;-webkit-tap-highlight-color:transparent}

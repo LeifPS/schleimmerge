@@ -7,6 +7,7 @@ Ein handgezeichnetes Merge-Spiel im Browser: Kaufe Schleime, ziehe zwei gleiche 
 - **Kaufen**: den blauen Knopf unter dem Raster drücken.
 - **Verschmelzen**: einen Schleim auf einen gleichen ziehen, dann wird er eine Stufe besser.
 - **Ausrüsten**: Schleim in eines der drei blauen Felder rechts ziehen (oder antippen). Dort kämpft er automatisch.
+- **Löschen**: Einen Schleim auf den Mülleimer neben dem Kaufknopf ziehen, dann ist er weg (macht Platz im Raster).
 - **Kisten**: Nach jedem fünften Sieg einer Bahn öffnet sich die Kiste und gibt Bonusmünzen, manchmal einen Schleim.
 - **Sammlung**: Die Leiste links zeigt alle 60 Stufen (im Querformat).
 - **Weg gewesen**: Beim Zurückkommen gibt es Münzen für die Zeit, in der deine Schleime weitergekämpft haben (bis 2 Stunden, mit halber Kraft).

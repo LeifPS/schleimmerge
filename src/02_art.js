@@ -10,27 +10,44 @@ function slimePalette(l) {
 }
 const SL_W = 256, SL_U = 210, SL_OX = 128, SL_OY = 228;
 const slimeCache = {}, faceCache = {}, weapCache = {}, silCache = {};
+function shadeHex(hex, k) { const p = parseInt(hex.slice(1), 16), m = sh => Math.round(((p >> sh) & 255) * (1 - k)); return "rgb(" + m(16) + "," + m(8) + "," + m(0) + ")"; }
+function bodyPath(c) { c.beginPath(); c.moveTo(-.5, -.02); c.bezierCurveTo(-.58, -.3, -.3, -.78, 0, -.78); c.bezierCurveTo(.3, -.78, .58, -.3, .5, -.02); c.quadraticCurveTo(0, .05, -.5, -.02); c.closePath(); }
+function slimeHat(c, g, t, l) {   // Kopfschmuck je Materialstufe: ab Eisen gibt es etwas auf dem Kopf
+  c.lineWidth = .03;
+  if (t === 1) { for (const s of [-1, 1]) { c.beginPath(); c.moveTo(0, -.77); c.bezierCurveTo(s * .06, -.9, s * .2, -.95, s * .26, -.88); c.bezierCurveTo(s * .22, -.78, s * .1, -.74, 0, -.77); c.closePath(); FS(c, s < 0 ? "#6fc05a" : "#8fd86a"); } }
+  else if (t === 2) { crownShape(c, g, 0, -.74, .7); }
+  else if (t === 3) { for (const s of [-1, 1]) { c.beginPath(); c.moveTo(s * .13, -.72); c.lineTo(s * .22, -.98); c.lineTo(s * .3, -.7); c.closePath(); FS(c, "#9ff0ff"); g.strokeStyle = "rgba(255,255,255,.8)"; g.lineWidth = .02; g.beginPath(); g.moveTo(s * .22, -.94); g.lineTo(s * .2, -.78); g.stroke(); g.strokeStyle = INK; } }
+  else if (t === 4) { const fl = [[-.14, -.74, .13, "#ff7a2a"], [.14, -.74, .13, "#ff7a2a"], [0, -.78, .18, "#ffb02a"]]; for (const f of fl) { c.beginPath(); c.moveTo(f[0] - f[2] * .6, f[1]); c.quadraticCurveTo(f[0] - f[2] * .3, f[1] - f[2] * 1.4, f[0], f[1] - f[2] * 2.1); c.quadraticCurveTo(f[0] + f[2] * .4, f[1] - f[2] * 1.2, f[0] + f[2] * .6, f[1]); c.closePath(); FS(c, f[3]); } }
+  else if (t === 5) { c.lineWidth = .035; c.beginPath(); c.ellipse(0, -.93, .22, .06, 0, 0, 7); c.strokeStyle = "#ffe27a"; c.stroke(); g.strokeStyle = "rgba(255,255,255,.7)"; g.lineWidth = .014; g.beginPath(); g.ellipse(0, -.935, .2, .045, 0, 3.4, 5.6); g.stroke(); g.strokeStyle = INK; }
+}
 function slimeSprite(l) {
   return slimeCache[l] || (slimeCache[l] = makeSprite(SL_W, SL_W, SL_OX, SL_OY, SL_U, l * .37 + 1, (c, g) => {
-    const pal = slimePalette(l);
-    const gr = g.createLinearGradient(0, -.78, 0, 0); gr.addColorStop(0, pal[0]); gr.addColorStop(.55, pal[1]); gr.addColorStop(1, pal[2]);
-    c.beginPath(); c.moveTo(-.5, -.02); c.bezierCurveTo(-.58, -.3, -.3, -.78, 0, -.78); c.bezierCurveTo(.3, -.78, .58, -.3, .5, -.02); c.quadraticCurveTo(0, .05, -.5, -.02); c.closePath();
-    c.lineWidth = .035; FS(c, gr);
-    g.fillStyle = "rgba(20,10,60,.13)"; c.beginPath(); c.ellipse(.02, -.07, .4, .075, 0, 0, 7); c.fill();
-    g.fillStyle = "rgba(255,255,255,.78)"; c.beginPath(); c.ellipse(-.24, -.55, .085, .15, -.5, 0, 7); c.fill();
-    g.beginPath(); g.arc(-.1, -.68, .033, 0, 7); g.fill();
+    const pal = slimePalette(l), t = wTier(l);
+    g.fillStyle = "rgba(10,10,50,.22)"; g.beginPath(); g.ellipse(0, .0, .56, .07, 0, 0, 7); g.fill();
+    const gr = g.createLinearGradient(0, -.78, 0, 0); gr.addColorStop(0, pal[0]); gr.addColorStop(.5, pal[1]); gr.addColorStop(1, pal[2]);
+    bodyPath(c); c.lineWidth = .04; FS(c, gr);
+    /* Schattierung nur innerhalb des Körpers: dunkler Rand, Rückstrahlung unten, heller Kern oben */
+    g.save(); bodyPath(c); c.clip();
+    const rg = g.createRadialGradient(-.08, -.46, .08, 0, -.36, .66); rg.addColorStop(0, "rgba(255,255,255,.22)"); rg.addColorStop(.55, "rgba(255,255,255,0)"); rg.addColorStop(1, "rgba(25,10,70,.34)"); g.fillStyle = rg; g.fillRect(-.7, -.9, 1.4, 1);
+    const bg = g.createLinearGradient(0, -.2, 0, 0); bg.addColorStop(0, "rgba(255,255,255,0)"); bg.addColorStop(1, "rgba(255,255,255,.3)"); g.fillStyle = bg; g.fillRect(-.7, -.2, 1.4, .25);
+    g.restore();
+    /* Glanz */
+    g.fillStyle = "rgba(255,255,255,.88)"; c.beginPath(); c.ellipse(-.25, -.57, .075, .16, -.5, 0, 7); c.fill();
+    g.beginPath(); g.arc(-.12, -.7, .032, 0, 7); g.fill(); g.beginPath(); g.arc(-.32, -.4, .02, 0, 7); g.fill();
+    g.strokeStyle = "rgba(255,255,255,.4)"; g.lineWidth = .028; g.beginPath(); g.arc(0, -.36, .42, -.5, .35); g.stroke();
+    g.strokeStyle = INK;
     if (l >= 25) { g.fillStyle = "rgba(255,255,255,.95)"; sparklePath(g, .22, -.5, .07); g.fill(); sparklePath(g, .3, -.3, .045); g.fill(); sparklePath(g, -.3, -.22, .04); g.fill(); }
-    if (l >= 45) { g.strokeStyle = "rgba(255,240,150,.85)"; g.lineWidth = .02; g.beginPath(); g.moveTo(-.4, -.4); g.quadraticCurveTo(-.36, -.62, -.2, -.7); g.stroke(); }
+    if (t) slimeHat(c, g, t, l);
   }, .006));
 }
 function faceSprite(l, state) {   // state: 0 offen, 1 blinzeln, 2 Angriff
   const v = l % 4, key = v + "_" + state;
   return faceCache[key] || (faceCache[key] = makeSprite(SL_W, SL_W, SL_OX, SL_OY, SL_U, 7.7 + v, (c, g) => {
-    g.fillStyle = "rgba(255,110,150,.45)"; c.beginPath(); c.ellipse(-.31, -.27, .06, .035, 0, 0, 7); c.fill(); c.beginPath(); c.ellipse(.31, -.27, .06, .035, 0, 0, 7); c.fill();
+    g.fillStyle = "rgba(255,100,140,.55)"; c.beginPath(); c.ellipse(-.31, -.26, .07, .04, 0, 0, 7); c.fill(); c.beginPath(); c.ellipse(.31, -.26, .07, .04, 0, 0, 7); c.fill();
     for (const sx of [-1, 1]) {
       const ex = sx * .17, ey = -.38;
       if (state === 1) { c.lineWidth = .028; c.beginPath(); c.arc(ex, ey, .05, .15 * Math.PI, .85 * Math.PI); c.stroke(); }
-      else { g.fillStyle = INK; c.beginPath(); c.ellipse(ex, ey, .05, .065, 0, 0, 7); c.fill(); g.fillStyle = "#fff"; g.beginPath(); g.arc(ex + .016, ey - .022, .02, 0, 7); g.fill(); }
+      else { g.fillStyle = INK; c.beginPath(); c.ellipse(ex, ey, .06, .078, 0, 0, 7); c.fill(); g.fillStyle = "#fff"; g.beginPath(); g.arc(ex + .02, ey - .028, .026, 0, 7); g.fill(); g.beginPath(); g.arc(ex - .02, ey + .03, .012, 0, 7); g.fill(); }
     }
     c.lineWidth = .028;
     if (state === 2) { c.beginPath(); c.ellipse(0, -.24, .06, .075, 0, 0, 7); FS(c, INK); g.fillStyle = "#ff7a95"; g.beginPath(); g.ellipse(0, -.205, .04, .035, 0, 0, 7); g.fill(); }
@@ -109,8 +126,13 @@ function weaponSprite(l) {
   return weapCache[l] || (weapCache[l] = makeSprite(WP_W, WP_W, WP_OX, WP_OY, WP_U, l * .53 + 3, (c, g) => {
     const t = wTier(l), M = MATS[t];
     if (t >= 4) { const gr = g.createRadialGradient(0, -.7, .02, 0, -.7, .5); gr.addColorStop(0, t === 4 ? "rgba(255,160,60,.5)" : "rgba(210,140,255,.5)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(-.7, -1.2, 1.4, 1.4); }
-    weaponShape(c, g, wType(l), M);
-    if (t >= 3) { g.fillStyle = "rgba(255,255,255,.95)"; sparklePath(g, .12, -.85, .05); g.fill(); }
+    c.lineWidth = .04; weaponShape(c, g, wType(l), M);
+    g.save(); g.globalCompositeOperation = "source-atop";
+    const sh = g.createLinearGradient(-.32, 0, .32, 0); sh.addColorStop(0, "rgba(255,255,255,.55)"); sh.addColorStop(.38, "rgba(255,255,255,0)"); sh.addColorStop(1, "rgba(10,10,60,.34)"); g.fillStyle = sh; g.fillRect(-.8, -1.3, 1.6, 1.6);
+    const tp = g.createLinearGradient(0, -1, 0, .1); tp.addColorStop(0, "rgba(255,255,255,.22)"); tp.addColorStop(1, "rgba(0,0,40,.12)"); g.fillStyle = tp; g.fillRect(-.8, -1.3, 1.6, 1.6);
+    g.restore();
+    if (t >= 2) { g.fillStyle = "rgba(255,255,255,.95)"; sparklePath(g, .12, -.85, .05); g.fill(); }
+    if (t >= 3) { g.fillStyle = "rgba(255,255,255,.9)"; sparklePath(g, -.14, -.62, .035); g.fill(); }
   }, .006));
 }
 
@@ -239,5 +261,19 @@ function chestSprite(open) {
       c.lineWidth = .026; c.beginPath(); c.moveTo(-.34, -.4); c.bezierCurveTo(-.34, -.58, -.24, -.64, 0, -.64); c.bezierCurveTo(.24, -.64, .34, -.58, .34, -.4); c.closePath(); FS(c, ORG);
       g.fillStyle = "rgba(255,255,255,.7)"; g.beginPath(); g.ellipse(-.24, -.56, .07, .035, -.5, 0, 7); g.fill(); }
     c.lineWidth = .026; c.beginPath(); c.rect(-.07, open ? -.32 : -.44, .14, .17); FS(c, "#fff0a8"); g.fillStyle = INK; g.beginPath(); g.arc(0, open ? -.25 : -.37, .02, 0, 7); g.fill();
+  }, .006));
+}
+
+/* ---------- Mülleimer zum Löschen (Platte mit Eimer, Deckel springt auf wenn ein Schleim darüber ist) ---------- */
+const binCache = {};
+function binSprite(open) {
+  return binCache[open ? 1 : 0] || (binCache[open ? 1 : 0] = makeSprite(144, 144, 72, 72, 120, open ? 9.3 : 9.1, (c, g) => {
+    c.lineWidth = .04; c.beginPath(); c.moveTo(-.4, -.5); c.lineTo(.4, -.5); c.quadraticCurveTo(.5, -.5, .5, -.4); c.lineTo(.5, .4); c.quadraticCurveTo(.5, .5, .4, .5); c.lineTo(-.4, .5); c.quadraticCurveTo(-.5, .5, -.5, .4); c.lineTo(-.5, -.4); c.quadraticCurveTo(-.5, -.5, -.4, -.5); c.closePath(); FS(c, open ? "#c8504a" : "#4a5aa0");
+    c.lineWidth = .035; c.beginPath(); c.moveTo(-.25, -.14); c.lineTo(-.2, .34); c.quadraticCurveTo(0, .4, .2, .34); c.lineTo(.25, -.14); c.closePath(); FS(c, "#a9bde6");
+    g.strokeStyle = "rgba(30,40,100,.45)"; g.lineWidth = .022; for (const x of [-.1, 0, .1]) { g.beginPath(); g.moveTo(x * 1.1, -.08); g.lineTo(x, .3); g.stroke(); } g.strokeStyle = INK;
+    g.save(); if (open) { g.translate(-.3, -.2); g.rotate(-.55); g.translate(.3, .2); }
+    c.lineWidth = .035; c.beginPath(); c.moveTo(-.32, -.26); c.lineTo(.32, -.26); c.lineTo(.3, -.14); c.lineTo(-.3, -.14); c.closePath(); FS(c, "#c9d7f2");
+    c.beginPath(); c.moveTo(-.09, -.26); c.quadraticCurveTo(-.08, -.36, 0, -.36); c.quadraticCurveTo(.08, -.36, .09, -.26); c.stroke(); g.restore();
+    g.fillStyle = "rgba(255,255,255,.35)"; g.beginPath(); g.ellipse(-.3, -.36, .1, .035, -.3, 0, 7); g.fill();
   }, .006));
 }

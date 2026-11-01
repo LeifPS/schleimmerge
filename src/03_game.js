@@ -41,7 +41,8 @@ const sfx = {
   hit() { const n = performance.now(); if (n - lastHitSfx < 90) return; lastHitSfx = n; tone(200 + Math.random() * 60, .07, "triangle", .035, .6); },
   kill() { tone(420, .14, "square", .035, 1.8); },
   chest() { [523, 659, 784, 1047].forEach((f, i) => tone(f, .16, "triangle", .07, 1, i * .07)); },
-  fail() { tone(160, .16, "sawtooth", .04, .7); }
+  fail() { tone(160, .16, "sawtooth", .04, .7); },
+  del() { tone(380, .18, "triangle", .06, .35); }
 };
 /* Verdienst, während das Spiel zu war (halbe Kraft, damit Dranbleiben sich lohnt) */
 function offlineProgress(sec) {
@@ -74,7 +75,7 @@ function layout() {
     const rx = listW, rw = W - listW, mw = rw * .44, lx = rx + mw, lw = rw - mw;
     const topH = H * .19; cs = Math.max(40, Math.min(mw * .3, (H - topH - H * .22) / 3.35)); gap = cs * .09; gw = 3 * cs + 2 * gap; gx = rx + (mw - gw) / 2; gy = topH;
     L.counter = { x: rx + mw / 2, y: H * .095, size: Math.min(H * .09, mw * .13) }; L.mute = { x: rx + 12, y: 12, w: 44, h: 44 };
-    const bh = cs * .62, bw = gw * .94; L.buy = { x: rx + (mw - bw) / 2, y: gy + gw + cs * .26, w: bw, h: bh };
+    const bh = cs * .62, tw = gw * .94, gp = bh * .16, bx0 = rx + (mw - tw) / 2, by0 = gy + gw + cs * .26; L.buy = { x: bx0, y: by0, w: tw - bh - gp, h: bh }; L.bin = { x: bx0 + tw - bh, y: by0, w: bh, h: bh };
     L.laneArea = { x: lx, y: 0, w: lw, h: H };
     const m = H * .02, rh = (H - m * 2) / 3;
     for (let i = 0; i < 3; i++) {
@@ -89,7 +90,7 @@ function layout() {
       L.lanes.push({ y0, rh, slot: { x: W * .03, y: y0 + (rh - ss) / 2 + rh * .03, w: ss, h: ss }, floorY: y0 + rh * .9, monX: W * .57, monH: Math.min(rh * .7, W * .36), chestX: W * .895, chestS: Math.min(rh * .5, W * .17), x0: W * .01, x1: W * .99 });
     }
     const availH = H - H * .565 - H * .03; cs = Math.max(40, Math.min(W * .27, availH / 3.95)); gap = cs * .09; gw = 3 * cs + 2 * gap; gx = (W - gw) / 2; gy = H * .565;
-    const bh = cs * .62, bw = gw * .94; L.buy = { x: (W - bw) / 2, y: gy + gw + cs * .22, w: bw, h: bh };
+    const bh = cs * .62, tw = gw * .94, gp = bh * .16, bx0 = (W - tw) / 2, by0 = gy + gw + cs * .22; L.buy = { x: bx0, y: by0, w: tw - bh - gp, h: bh }; L.bin = { x: bx0 + tw - bh, y: by0, w: bh, h: bh };
     L.list = null;
   }
   for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) L.cells.push({ x: gx + c * (cs + gap), y: gy + r * (cs + gap), w: cs, h: cs });
@@ -227,7 +228,7 @@ function drawSlime(l, cx, by, size, o) {
   const dx = -SL_OX * k, dy = -SL_OY * k, dw = SL_W * k;
   ctx.drawImage(slimeSprite(l), dx, dy, dw, dw);
   const blink = ((time * .6 + l * .37) % 4) < .12; ctx.drawImage(faceSprite(l, o.attack ? 2 : blink ? 1 : 0), dx, dy, dw, dw);
-  const wk = size * .95 / WP_U; ctx.save(); ctx.translate(size * .42, -size * .2); ctx.rotate(o.ang != null ? o.ang : .25 + Math.sin(time * 2 + l) * .04); ctx.drawImage(weaponSprite(l), -WP_OX * wk, -WP_OY * wk, WP_W * wk, WP_W * wk); ctx.restore();
+  const wk = size * 1.05 / WP_U; ctx.save(); ctx.translate(size * .42, -size * .2); ctx.rotate(o.ang != null ? o.ang : .25 + Math.sin(time * 2 + l) * .04); ctx.drawImage(weaponSprite(l), -WP_OX * wk, -WP_OY * wk, WP_W * wk, WP_W * wk); ctx.restore();
   ctx.restore();
 }
 function drawLocked(l, cx, by, size) { const k = size / SL_U; ctx.globalAlpha = .55; ctx.drawImage(slimeSil(l), cx - SL_OX * k, by - SL_OY * k, SL_W * k, SL_W * k); ctx.globalAlpha = 1; }
@@ -295,6 +296,12 @@ function drawBuy() {
   const s = b.h * .56, str = fmt(cost); ctx.font = s + "px \"Caveat Brush\",cursive"; const tw = ctx.measureText(str).width, cw = s * 1.05, tot = tw + cw + s * .2, x1 = b.x + b.w * .92 + shx, x0 = x1 - tot;
   txt(str, x0, b.y + dy + b.h * .5, s, can ? "#fff" : "#d8def5", "left"); ctx.drawImage(coinSprite(), x0 + tw + s * .2, b.y + dy + b.h * .5 - cw / 2, cw, cw);
 }
+function drawBin() {
+  const b = L.bin; if (!b) return; const over = !!(drag && inR({ x: drag.px, y: drag.py }, b)), pulse = .5 + .5 * Math.sin(time * 6), sc = over ? 1.1 : 1;
+  ctx.save(); ctx.translate(b.x + b.w / 2, b.y + b.h / 2); ctx.scale(sc, sc); ctx.drawImage(binSprite(over), -b.w * .6, -b.h * .6, b.w * 1.2, b.h * 1.2);
+  if (drag && !over) { ctx.strokeStyle = "rgba(255,170,160," + (.3 + .4 * pulse) + ")"; ctx.lineWidth = 4; rr(ctx, -b.w * .48, -b.h * .48, b.w * .96, b.h * .96, b.w * .16); ctx.stroke(); }
+  ctx.restore();
+}
 function drawList() {
   const li = L.list; if (!li) return; ctx.save(); ctx.beginPath(); ctx.rect(0, 0, li.w - 3, VH); ctx.clip();
   const sz = li.w * .52; for (let l = 1; l <= MAXLVL; l++) {
@@ -330,7 +337,7 @@ function drawMute() {
 function render() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.lineJoin = ctx.lineCap = "round"; ctx.clearRect(0, 0, VW, VH);
   ctx.drawImage(bgC, 0, 0, VW, VH);
-  drawList(); drawCounter(); drawMute(); drawGrid(); drawLanes(); drawBuy(); drawParts(); drawBanner();
+  drawList(); drawCounter(); drawMute(); drawGrid(); drawLanes(); drawBuy(); drawBin(); drawParts(); drawBanner();
   if (drag) { const sz = L.grid.cs * .8, rc = drag; ctx.save(); ctx.fillStyle = "rgba(10,10,40,.3)"; ctx.beginPath(); ctx.ellipse(rc.x, rc.y + sz * .42, sz * .42, sz * .08, 0, 0, 7); ctx.fill(); ctx.restore(); drawSlime(drag.lvl, rc.x, rc.y + sz * .35, sz, { ph: 3, ang: .45 }); }
 }
 
@@ -348,11 +355,11 @@ cv.addEventListener("pointerdown", e => {
   if (L.mute && inR(p, L.mute)) { down.mode = "mute"; return; }
   if (inR(p, L.buy)) { down.mode = "buy"; buyPress = 1; return; }
   if (L.list && p.x < L.list.w) { down.mode = "list"; return; }
-  const ref = hitSlot(p); if (ref && getL(ref)) { down.mode = "slime"; down.ref = ref; drag = { ref, lvl: getL(ref), x: p.x, y: p.y - L.grid.cs * .25 }; }
+  const ref = hitSlot(p); if (ref && getL(ref)) { down.mode = "slime"; down.ref = ref; drag = { ref, lvl: getL(ref), x: p.x, y: p.y - L.grid.cs * .25, px: p.x, py: p.y }; }
 });
 cv.addEventListener("pointermove", e => {
   if (!down) return; const p = pt(e); down.moved = Math.max(down.moved, Math.hypot(p.x - down.x, p.y - down.y));
-  if (down.mode === "slime" && drag) { drag.x = p.x; drag.y = p.y - L.grid.cs * .25; }
+  if (down.mode === "slime" && drag) { drag.x = p.x; drag.y = p.y - L.grid.cs * .25; drag.px = p.x; drag.py = p.y; }
   else if (down.mode === "list" && L.list) listScroll = clamp(down.scroll - (p.y - down.y), 0, L.list.max);
   else if (down.mode === "buy" && !inR(p, L.buy)) buyPress = 0;
 });
@@ -363,12 +370,17 @@ function release(e, cancel) {
   if (d.mode === "slime" && drag) {
     const tap = d.moved < 10 && performance.now() - d.t < 450; drag = null; if (cancel) return;
     if (tap) { tapSlime(d.ref); return; }
+    if (inR(p, L.bin)) { deleteSlime(d.ref); return; }
     const dst = hitSlot(p); if (dst) apply(d.ref, dst);
   }
 }
 cv.addEventListener("pointerup", e => release(e, false)); cv.addEventListener("pointercancel", e => release(e, true));
 cv.addEventListener("wheel", e => { if (L.list && e.clientX < L.list.w) { listScroll = clamp(listScroll + e.deltaY, 0, L.list.max); e.preventDefault(); } }, { passive: false });
 cv.addEventListener("contextmenu", e => e.preventDefault());
+function deleteSlime(ref) {
+  const l = getL(ref); if (!l) return; setL(ref, 0); const b = L.bin, cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+  puffs(cx, cy, 6, b.w * 1.2); sparks(cx, cy - b.h * .2, 8, "#c9d7f2", 140); say("Gelöscht", cx, b.y - 10, "#c9d7f2", 22); sfx.del();
+}
 /* Tippen: Schleim aus dem Raster in eine freie Bahn, oder aus der Bahn zurück ins Raster */
 function tapSlime(ref) {
   const l = getL(ref);

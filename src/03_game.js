@@ -59,7 +59,8 @@ function offlineProgress(sec) {
   S.coins += gain; S.kills += kills; return { gain, kills };
 }
 
-const monInfo = st => ({ kind: Math.floor((st - 1) / 10) % MONS.length, tint: Math.floor((st - 1) / 60) % 3, boss: isBoss(st) });
+/* Jeder Boss ist einzigartig: Kopfstück wechselt, und nach jedem Durchlauf durch alle Monsterarten kommt ein neuer Farbton dazu */
+const monInfo = st => { const n = Math.floor((st - 1) / 10) + 1, boss = isBoss(st); return { kind: (n - 1) % MONS.length, tint: Math.floor((st - 1) / 60), boss, acc: (n - 1 + Math.floor((n - 1) / MONS.length)) % 6, deg: boss ? Math.floor((n - 1) / MONS.length) * 61 : 0 }; };
 const getL = r => r.t === "g" ? S.grid[r.i] : S.lanes[r.i].lvl;
 const setL = (r, v) => { if (r.t === "g") S.grid[r.i] = v; else S.lanes[r.i].lvl = v; if (v > S.best) S.best = v; };
 const popOf = r => r.t === "g" ? gridPop : lanePop;
@@ -262,14 +263,14 @@ function drawLanes() {
     if (drag && !isDrag && (!ln.lvl || ln.lvl === dl)) { ctx.save(); ctx.strokeStyle = "rgba(255,246,150," + (ln.lvl === dl ? .9 : .4) * (.5 + .5 * Math.sin(time * 6)) + ")"; ctx.lineWidth = 4; rr(ctx, sl.x + 2, sl.y + 2, sl.w - 4, sl.h - 4, sl.w * .14); ctx.stroke(); ctx.restore(); }
     else if (!drag && hasG && !anyEq && !ln.lvl) { ctx.save(); ctx.strokeStyle = "rgba(255,246,150," + (.3 + .5 * Math.sin(time * 4) * .5 + .25) + ")"; ctx.lineWidth = 4; rr(ctx, sl.x + 2, sl.y + 2, sl.w - 4, sl.h - 4, sl.w * .14); ctx.stroke(); ctx.restore(); }
     /* Monster */
-    const info = monInfo(ln.stage), spr = monsterSprite(info.kind, info.tint, info.boss), hsz = Math.max(16, Ls.monH * .14), topU = MONS[info.kind].top + (info.boss ? .3 : .02), availH = Ls.floorY - (Ls.y0 + hsz * 1.45 + 17), upx = Math.min(Ls.monH / .9 * (info.boss ? .96 : 1), availH / topU), k = upx / MON_U, topPx = upx * topU;
+    const info = monInfo(ln.stage), spr = monsterSprite(info), hsz = Math.max(16, Ls.monH * .14), topU = MONS[info.kind].top + (info.boss ? .4 : .02), availH = Ls.floorY - (Ls.y0 + hsz * 1.45 + 17), upx = Math.min(Ls.monH / .9 * (info.boss ? .96 : 1), availH / topU), k = upx / MON_U, topPx = upx * topU;
     let alpha = 1, sx = 1, sy = 1, ox = 0, oy = 0;
     if (r.spawn < 1) { const e = ease(r.spawn); oy = -(1 - e) * Ls.monH * .9; alpha = Math.min(1, e * 1.4); if (e > .8) { const q = Math.sin((e - .8) / .2 * Math.PI); sy = 1 - .12 * q; sx = 1 + .1 * q; } }
     if (r.dying > 0) { const d = r.dying; alpha = d; sx = 1 + (1 - d) * .5; sy = .35 + .65 * d; }
     const idle = Math.sin(time * 2.6 + i * 1.7) * .022; ox += Math.sin(time * 70) * r.hit * Ls.monH * .025;
     ctx.save(); ctx.globalAlpha = alpha; ctx.translate(Ls.monX + ox, Ls.floorY + 3 + oy); ctx.scale(sx * (1 + idle), sy * (1 - idle));
     ctx.drawImage(spr, -MON_OX * k, -MON_OY * k, MON_W * k, MON_W * k);
-    if (r.hit > 0 && r.dying <= 0) { ctx.globalAlpha = alpha * r.hit * .7; ctx.drawImage(monsterSil(info.kind, info.tint, info.boss), -MON_OX * k, -MON_OY * k, MON_W * k, MON_W * k); }
+    if (r.hit > 0 && r.dying <= 0) { ctx.globalAlpha = alpha * r.hit * .7; ctx.drawImage(monsterSil(info), -MON_OX * k, -MON_OY * k, MON_W * k, MON_W * k); }
     ctx.restore();
     /* Lebenspunkte */
     if (r.dying <= 0) {

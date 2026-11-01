@@ -308,17 +308,51 @@ function crownShape(c, g, x, y, s) {
   c.lineWidth = .028; c.beginPath(); c.moveTo(x - .2 * s, y); c.lineTo(x - .22 * s, y - .17 * s); c.lineTo(x - .1 * s, y - .09 * s); c.lineTo(x, y - .21 * s); c.lineTo(x + .1 * s, y - .09 * s); c.lineTo(x + .22 * s, y - .17 * s); c.lineTo(x + .2 * s, y); c.closePath(); FS(c, "#ffd23f");
   for (const dx of [-.22, 0, .22]) { c.beginPath(); c.arc(x + dx * s, y - (dx ? .17 : .21) * s, .03 * s, 0, 7); FS(c, "#ff5a6e"); }
 }
-function monsterSprite(kind, tint, boss) {
-  const key = kind + "_" + tint + "_" + (boss ? 1 : 0);
-  return monCache[key] || (monCache[key] = makeSprite(MON_W, MON_W, MON_OX, MON_OY, MON_U, kind * 1.9 + tint + 5, (c, g) => {
-    const M = MONS[kind];
+/* Farbton verschieben (für immer neue Farben bei späteren Durchläufen); Grau und Weiß werden dabei eingefärbt */
+function shiftHex(hex, deg) {
+  const p = parseInt(hex.slice(1), 16); let r = (p >> 16) / 255, g = ((p >> 8) & 255) / 255, b = (p & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2; let h = 0, sat = 0;
+  if (mx !== mn) { const d = mx - mn; sat = l > .5 ? d / (2 - mx - mn) : d / (mx + mn); h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; }
+  return hsl(h + deg, Math.max(sat, .42), clamp(l, .3, .86));
+}
+function monPal(kind, tint, deg) {
+  const base = MONS[kind].pal[tint % 3], extra = Math.floor(tint / 3) * 47 + deg; if (!extra) return base;
+  return { a: shiftHex(base.a, extra), b: shiftHex(base.b, extra), d: shiftHex(base.d, extra) };
+}
+/* Sechs verschiedene Kopfstücke für Bosse */
+function bossHat(c, g, acc, x, y) {
+  c.lineWidth = .03;
+  const band = col => { c.beginPath(); c.moveTo(x - .22, y); c.lineTo(x - .21, y - .07); c.lineTo(x + .21, y - .07); c.lineTo(x + .22, y); c.closePath(); FS(c, col); };
+  if (acc === 0) crownShape(c, g, x, y, 1.1);
+  else if (acc === 1) {
+    for (const s of [-1, 1]) { c.beginPath(); c.moveTo(x + s * .2, y - .06); c.quadraticCurveTo(x + s * .42, y - .08, x + s * .38, y - .34); c.quadraticCurveTo(x + s * .3, y - .2, x + s * .15, y - .16); c.closePath(); FS(c, "#f3e6c0"); }
+    c.beginPath(); c.moveTo(x - .24, y); c.quadraticCurveTo(x - .24, y - .26, x, y - .26); c.quadraticCurveTo(x + .24, y - .26, x + .24, y); c.closePath(); FS(c, "#9aa3b6");
+    g.strokeStyle = "rgba(255,255,255,.55)"; g.lineWidth = .02; g.beginPath(); g.moveTo(x - .14, y - .1); g.quadraticCurveTo(x - .1, y - .2, x - .02, y - .21); g.stroke(); g.strokeStyle = INK;
+  } else if (acc === 2) {
+    band("#c9482a"); for (const f of [[-.14, .18, "#ff7a2a"], [0, .27, "#ffb02a"], [.14, .18, "#ff7a2a"]]) { c.beginPath(); c.moveTo(x + f[0] - .07, y - .07); c.quadraticCurveTo(x + f[0] - .03, y - .07 - f[1] * .6, x + f[0], y - .07 - f[1]); c.quadraticCurveTo(x + f[0] + .04, y - .07 - f[1] * .5, x + f[0] + .07, y - .07); c.closePath(); FS(c, f[2]); }
+  } else if (acc === 3) {
+    band("#6d7fb8"); for (const f of [[-.14, .2], [0, .3], [.14, .2]]) { c.beginPath(); c.moveTo(x + f[0] - .06, y - .07); c.lineTo(x + f[0], y - .07 - f[1]); c.lineTo(x + f[0] + .06, y - .07); c.closePath(); FS(c, "#9ff0ff"); }
+  } else if (acc === 4) {
+    const gr = g.createRadialGradient(x, y - .12, .02, x, y - .12, .3); gr.addColorStop(0, "rgba(255,240,150,.55)"); gr.addColorStop(1, "rgba(255,240,150,0)"); g.fillStyle = gr; g.fillRect(x - .4, y - .45, .8, .6);
+    c.lineWidth = .045; c.beginPath(); c.ellipse(x, y - .14, .24, .065, 0, 0, 7); c.strokeStyle = "#ffe27a"; c.stroke(); g.strokeStyle = INK;
+  } else {
+    c.beginPath(); c.ellipse(x, y - .02, .3, .06, 0, 0, 7); FS(c, "#4a2f8a");
+    c.beginPath(); c.moveTo(x - .2, y - .03); c.quadraticCurveTo(x - .1, y - .2, x + .1, y - .42); c.quadraticCurveTo(x + .14, y - .2, x + .2, y - .03); c.closePath(); FS(c, "#5a3aa0");
+    g.fillStyle = "#ffe27a"; starPath(g, x + .01, y - .15, .06, .028, 0); g.fill();
+  }
+}
+function monKey(i) { return [i.kind, i.tint, i.boss ? i.acc : "x", i.deg || 0].join("_"); }
+function monsterSprite(info) {
+  const key = monKey(info);
+  return monCache[key] || (monCache[key] = makeSprite(MON_W, MON_W, MON_OX, MON_OY, MON_U, info.kind * 1.9 + info.tint + 5 + (info.acc || 0) * .3, (c, g) => {
+    const M = MONS[info.kind];
     g.fillStyle = "rgba(10,10,40,.28)"; g.beginPath(); g.ellipse(0, .01, .5, .06, 0, 0, 7); g.fill();
-    if (boss) { const gr = g.createRadialGradient(0, -.4, .1, 0, -.4, .8); gr.addColorStop(0, "rgba(255,70,80,.38)"); gr.addColorStop(1, "rgba(255,70,80,0)"); g.fillStyle = gr; g.fillRect(-1, -1.2, 2, 1.6); }
-    MONDRAW[kind](c, g, M.pal[tint]);
-    if (boss) crownShape(c, g, M.cx, -M.top - .02, 1.1);
+    if (info.boss) { const gr = g.createRadialGradient(0, -.4, .1, 0, -.4, .8); gr.addColorStop(0, "rgba(255,70,80,.38)"); gr.addColorStop(1, "rgba(255,70,80,0)"); g.fillStyle = gr; g.fillRect(-1, -1.2, 2, 1.6); }
+    MONDRAW[info.kind](c, g, monPal(info.kind, info.tint, info.deg || 0));
+    if (info.boss) bossHat(c, g, info.acc, M.cx, -M.top - .02);
   }, .007));
 }
-function monsterSil(kind, tint, boss) { const key = kind + "_" + tint + "_" + (boss ? 1 : 0); return monSilCache[key] || (monSilCache[key] = silhouette(monsterSprite(kind, tint, boss), "#ffffff")); }
+function monsterSil(info) { const key = monKey(info); return monSilCache[key] || (monSilCache[key] = silhouette(monsterSprite(info), "#ffffff")); }
 
 /* ---------- Kleinkram: Münze, Herz, Truhe ---------- */
 let coinSpr = null, heartSpr = null, chestSpr = null;
@@ -427,7 +461,8 @@ function offlineProgress(sec) {
   S.coins += gain; S.kills += kills; return { gain, kills };
 }
 
-const monInfo = st => ({ kind: Math.floor((st - 1) / 10) % MONS.length, tint: Math.floor((st - 1) / 60) % 3, boss: isBoss(st) });
+/* Jeder Boss ist einzigartig: Kopfstück wechselt, und nach jedem Durchlauf durch alle Monsterarten kommt ein neuer Farbton dazu */
+const monInfo = st => { const n = Math.floor((st - 1) / 10) + 1, boss = isBoss(st); return { kind: (n - 1) % MONS.length, tint: Math.floor((st - 1) / 60), boss, acc: (n - 1 + Math.floor((n - 1) / MONS.length)) % 6, deg: boss ? Math.floor((n - 1) / MONS.length) * 61 : 0 }; };
 const getL = r => r.t === "g" ? S.grid[r.i] : S.lanes[r.i].lvl;
 const setL = (r, v) => { if (r.t === "g") S.grid[r.i] = v; else S.lanes[r.i].lvl = v; if (v > S.best) S.best = v; };
 const popOf = r => r.t === "g" ? gridPop : lanePop;
@@ -630,14 +665,14 @@ function drawLanes() {
     if (drag && !isDrag && (!ln.lvl || ln.lvl === dl)) { ctx.save(); ctx.strokeStyle = "rgba(255,246,150," + (ln.lvl === dl ? .9 : .4) * (.5 + .5 * Math.sin(time * 6)) + ")"; ctx.lineWidth = 4; rr(ctx, sl.x + 2, sl.y + 2, sl.w - 4, sl.h - 4, sl.w * .14); ctx.stroke(); ctx.restore(); }
     else if (!drag && hasG && !anyEq && !ln.lvl) { ctx.save(); ctx.strokeStyle = "rgba(255,246,150," + (.3 + .5 * Math.sin(time * 4) * .5 + .25) + ")"; ctx.lineWidth = 4; rr(ctx, sl.x + 2, sl.y + 2, sl.w - 4, sl.h - 4, sl.w * .14); ctx.stroke(); ctx.restore(); }
     /* Monster */
-    const info = monInfo(ln.stage), spr = monsterSprite(info.kind, info.tint, info.boss), hsz = Math.max(16, Ls.monH * .14), topU = MONS[info.kind].top + (info.boss ? .3 : .02), availH = Ls.floorY - (Ls.y0 + hsz * 1.45 + 17), upx = Math.min(Ls.monH / .9 * (info.boss ? .96 : 1), availH / topU), k = upx / MON_U, topPx = upx * topU;
+    const info = monInfo(ln.stage), spr = monsterSprite(info), hsz = Math.max(16, Ls.monH * .14), topU = MONS[info.kind].top + (info.boss ? .4 : .02), availH = Ls.floorY - (Ls.y0 + hsz * 1.45 + 17), upx = Math.min(Ls.monH / .9 * (info.boss ? .96 : 1), availH / topU), k = upx / MON_U, topPx = upx * topU;
     let alpha = 1, sx = 1, sy = 1, ox = 0, oy = 0;
     if (r.spawn < 1) { const e = ease(r.spawn); oy = -(1 - e) * Ls.monH * .9; alpha = Math.min(1, e * 1.4); if (e > .8) { const q = Math.sin((e - .8) / .2 * Math.PI); sy = 1 - .12 * q; sx = 1 + .1 * q; } }
     if (r.dying > 0) { const d = r.dying; alpha = d; sx = 1 + (1 - d) * .5; sy = .35 + .65 * d; }
     const idle = Math.sin(time * 2.6 + i * 1.7) * .022; ox += Math.sin(time * 70) * r.hit * Ls.monH * .025;
     ctx.save(); ctx.globalAlpha = alpha; ctx.translate(Ls.monX + ox, Ls.floorY + 3 + oy); ctx.scale(sx * (1 + idle), sy * (1 - idle));
     ctx.drawImage(spr, -MON_OX * k, -MON_OY * k, MON_W * k, MON_W * k);
-    if (r.hit > 0 && r.dying <= 0) { ctx.globalAlpha = alpha * r.hit * .7; ctx.drawImage(monsterSil(info.kind, info.tint, info.boss), -MON_OX * k, -MON_OY * k, MON_W * k, MON_W * k); }
+    if (r.hit > 0 && r.dying <= 0) { ctx.globalAlpha = alpha * r.hit * .7; ctx.drawImage(monsterSil(info), -MON_OX * k, -MON_OY * k, MON_W * k, MON_W * k); }
     ctx.restore();
     /* Lebenspunkte */
     if (r.dying <= 0) {

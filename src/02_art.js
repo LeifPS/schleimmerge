@@ -219,17 +219,51 @@ function crownShape(c, g, x, y, s) {
   c.lineWidth = .028; c.beginPath(); c.moveTo(x - .2 * s, y); c.lineTo(x - .22 * s, y - .17 * s); c.lineTo(x - .1 * s, y - .09 * s); c.lineTo(x, y - .21 * s); c.lineTo(x + .1 * s, y - .09 * s); c.lineTo(x + .22 * s, y - .17 * s); c.lineTo(x + .2 * s, y); c.closePath(); FS(c, "#ffd23f");
   for (const dx of [-.22, 0, .22]) { c.beginPath(); c.arc(x + dx * s, y - (dx ? .17 : .21) * s, .03 * s, 0, 7); FS(c, "#ff5a6e"); }
 }
-function monsterSprite(kind, tint, boss) {
-  const key = kind + "_" + tint + "_" + (boss ? 1 : 0);
-  return monCache[key] || (monCache[key] = makeSprite(MON_W, MON_W, MON_OX, MON_OY, MON_U, kind * 1.9 + tint + 5, (c, g) => {
-    const M = MONS[kind];
+/* Farbton verschieben (für immer neue Farben bei späteren Durchläufen); Grau und Weiß werden dabei eingefärbt */
+function shiftHex(hex, deg) {
+  const p = parseInt(hex.slice(1), 16); let r = (p >> 16) / 255, g = ((p >> 8) & 255) / 255, b = (p & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2; let h = 0, sat = 0;
+  if (mx !== mn) { const d = mx - mn; sat = l > .5 ? d / (2 - mx - mn) : d / (mx + mn); h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; }
+  return hsl(h + deg, Math.max(sat, .42), clamp(l, .3, .86));
+}
+function monPal(kind, tint, deg) {
+  const base = MONS[kind].pal[tint % 3], extra = Math.floor(tint / 3) * 47 + deg; if (!extra) return base;
+  return { a: shiftHex(base.a, extra), b: shiftHex(base.b, extra), d: shiftHex(base.d, extra) };
+}
+/* Sechs verschiedene Kopfstücke für Bosse */
+function bossHat(c, g, acc, x, y) {
+  c.lineWidth = .03;
+  const band = col => { c.beginPath(); c.moveTo(x - .22, y); c.lineTo(x - .21, y - .07); c.lineTo(x + .21, y - .07); c.lineTo(x + .22, y); c.closePath(); FS(c, col); };
+  if (acc === 0) crownShape(c, g, x, y, 1.1);
+  else if (acc === 1) {
+    for (const s of [-1, 1]) { c.beginPath(); c.moveTo(x + s * .2, y - .06); c.quadraticCurveTo(x + s * .42, y - .08, x + s * .38, y - .34); c.quadraticCurveTo(x + s * .3, y - .2, x + s * .15, y - .16); c.closePath(); FS(c, "#f3e6c0"); }
+    c.beginPath(); c.moveTo(x - .24, y); c.quadraticCurveTo(x - .24, y - .26, x, y - .26); c.quadraticCurveTo(x + .24, y - .26, x + .24, y); c.closePath(); FS(c, "#9aa3b6");
+    g.strokeStyle = "rgba(255,255,255,.55)"; g.lineWidth = .02; g.beginPath(); g.moveTo(x - .14, y - .1); g.quadraticCurveTo(x - .1, y - .2, x - .02, y - .21); g.stroke(); g.strokeStyle = INK;
+  } else if (acc === 2) {
+    band("#c9482a"); for (const f of [[-.14, .18, "#ff7a2a"], [0, .27, "#ffb02a"], [.14, .18, "#ff7a2a"]]) { c.beginPath(); c.moveTo(x + f[0] - .07, y - .07); c.quadraticCurveTo(x + f[0] - .03, y - .07 - f[1] * .6, x + f[0], y - .07 - f[1]); c.quadraticCurveTo(x + f[0] + .04, y - .07 - f[1] * .5, x + f[0] + .07, y - .07); c.closePath(); FS(c, f[2]); }
+  } else if (acc === 3) {
+    band("#6d7fb8"); for (const f of [[-.14, .2], [0, .3], [.14, .2]]) { c.beginPath(); c.moveTo(x + f[0] - .06, y - .07); c.lineTo(x + f[0], y - .07 - f[1]); c.lineTo(x + f[0] + .06, y - .07); c.closePath(); FS(c, "#9ff0ff"); }
+  } else if (acc === 4) {
+    const gr = g.createRadialGradient(x, y - .12, .02, x, y - .12, .3); gr.addColorStop(0, "rgba(255,240,150,.55)"); gr.addColorStop(1, "rgba(255,240,150,0)"); g.fillStyle = gr; g.fillRect(x - .4, y - .45, .8, .6);
+    c.lineWidth = .045; c.beginPath(); c.ellipse(x, y - .14, .24, .065, 0, 0, 7); c.strokeStyle = "#ffe27a"; c.stroke(); g.strokeStyle = INK;
+  } else {
+    c.beginPath(); c.ellipse(x, y - .02, .3, .06, 0, 0, 7); FS(c, "#4a2f8a");
+    c.beginPath(); c.moveTo(x - .2, y - .03); c.quadraticCurveTo(x - .1, y - .2, x + .1, y - .42); c.quadraticCurveTo(x + .14, y - .2, x + .2, y - .03); c.closePath(); FS(c, "#5a3aa0");
+    g.fillStyle = "#ffe27a"; starPath(g, x + .01, y - .15, .06, .028, 0); g.fill();
+  }
+}
+function monKey(i) { return [i.kind, i.tint, i.boss ? i.acc : "x", i.deg || 0].join("_"); }
+function monsterSprite(info) {
+  const key = monKey(info);
+  return monCache[key] || (monCache[key] = makeSprite(MON_W, MON_W, MON_OX, MON_OY, MON_U, info.kind * 1.9 + info.tint + 5 + (info.acc || 0) * .3, (c, g) => {
+    const M = MONS[info.kind];
     g.fillStyle = "rgba(10,10,40,.28)"; g.beginPath(); g.ellipse(0, .01, .5, .06, 0, 0, 7); g.fill();
-    if (boss) { const gr = g.createRadialGradient(0, -.4, .1, 0, -.4, .8); gr.addColorStop(0, "rgba(255,70,80,.38)"); gr.addColorStop(1, "rgba(255,70,80,0)"); g.fillStyle = gr; g.fillRect(-1, -1.2, 2, 1.6); }
-    MONDRAW[kind](c, g, M.pal[tint]);
-    if (boss) crownShape(c, g, M.cx, -M.top - .02, 1.1);
+    if (info.boss) { const gr = g.createRadialGradient(0, -.4, .1, 0, -.4, .8); gr.addColorStop(0, "rgba(255,70,80,.38)"); gr.addColorStop(1, "rgba(255,70,80,0)"); g.fillStyle = gr; g.fillRect(-1, -1.2, 2, 1.6); }
+    MONDRAW[info.kind](c, g, monPal(info.kind, info.tint, info.deg || 0));
+    if (info.boss) bossHat(c, g, info.acc, M.cx, -M.top - .02);
   }, .007));
 }
-function monsterSil(kind, tint, boss) { const key = kind + "_" + tint + "_" + (boss ? 1 : 0); return monSilCache[key] || (monSilCache[key] = silhouette(monsterSprite(kind, tint, boss), "#ffffff")); }
+function monsterSil(info) { const key = monKey(info); return monSilCache[key] || (monSilCache[key] = silhouette(monsterSprite(info), "#ffffff")); }
 
 /* ---------- Kleinkram: Münze, Herz, Truhe ---------- */
 let coinSpr = null, heartSpr = null, chestSpr = null;

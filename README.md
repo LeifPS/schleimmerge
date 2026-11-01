@@ -9,6 +9,8 @@ Ein handgezeichnetes Merge-Spiel im Browser: Kaufe Schleime, ziehe zwei gleiche 
 - **Ausrüsten**: Schleim in eines der drei blauen Felder rechts ziehen (oder antippen). Dort kämpft er automatisch.
 - **Kisten**: Nach jedem fünften Sieg einer Bahn öffnet sich die Kiste und gibt Bonusmünzen, manchmal einen Schleim.
 - **Sammlung**: Die Leiste links zeigt alle 60 Stufen (im Querformat).
+- **Weg gewesen**: Beim Zurückkommen gibt es Münzen für die Zeit, in der deine Schleime weitergekämpft haben (bis 2 Stunden, mit halber Kraft).
+- **Ton**: kleine selbst erzeugte Geräusche, der runde Knopf oben links schaltet sie aus.
 
 Der Spielstand liegt im Browser (localStorage).
 

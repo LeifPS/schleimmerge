@@ -26,6 +26,38 @@ const gridPop = Array(9).fill(0), lanePop = [0, 0, 0];
 let parts = [], floats = [], drag = null, buyPress = 0, buyShake = 0, counterBump = 0, listScroll = 0, banner = null;
 let bgC = null, btnUp = null, btnDn = null, bestShown = 0;
 
+/* ===== Geräusche (kleine selbst erzeugte Töne) ===== */
+let AC = null, lastHitSfx = 0;
+function audio() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { } } if (AC && AC.state === "suspended") AC.resume(); return AC; }
+function tone(f, dur, type, vol, slide, delay) {
+  if (S.mute || !AC) return; const t0 = AC.currentTime + (delay || 0), o = AC.createOscillator(), g = AC.createGain();
+  o.type = type || "sine"; o.frequency.setValueAtTime(f, t0); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f * slide), t0 + dur);
+  g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + .012); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur); o.connect(g); g.connect(AC.destination); o.start(t0); o.stop(t0 + dur + .03);
+}
+const sfx = {
+  merge(l) { const f = 330 * Math.pow(1.0595, Math.min(24, l * 1.5)); tone(f, .12, "triangle", .09); tone(f * 1.5, .18, "triangle", .08, 1, .08); },
+  buy() { tone(520, .07, "sine", .07, 1.3); tone(780, .1, "sine", .06, 1, .06); },
+  move() { tone(300, .05, "sine", .05, 1.3); },
+  hit() { const n = performance.now(); if (n - lastHitSfx < 90) return; lastHitSfx = n; tone(200 + Math.random() * 60, .07, "triangle", .035, .6); },
+  kill() { tone(420, .14, "square", .035, 1.8); },
+  chest() { [523, 659, 784, 1047].forEach((f, i) => tone(f, .16, "triangle", .07, 1, i * .07)); },
+  fail() { tone(160, .16, "sawtooth", .04, .7); }
+};
+/* Verdienst, während das Spiel zu war (halbe Kraft, damit Dranbleiben sich lohnt) */
+function offlineProgress(sec) {
+  let gain = 0, kills = 0;
+  for (let i = 0; i < 3; i++) {
+    const ln = S.lanes[i]; if (!ln.lvl) continue; const dps = dpsOf(ln.lvl) * .5; let t = sec, hp = ln.hp, guard = 0;
+    while (t > 0 && guard++ < 100000) {
+      const need = hp / dps;
+      if (need > t) { hp -= dps * t; t = 0; }
+      else { t -= need + 1; const r = rewardOf(ln.stage); gain += r; kills++; ln.chest++; if (ln.chest >= CHEST_EVERY) { ln.chest = 0; gain += r * 3; } ln.stage++; hp = hpOf(ln.stage); }
+    }
+    ln.hp = Math.max(1, hp);
+  }
+  S.coins += gain; S.kills += kills; return { gain, kills };
+}
+
 const monInfo = st => ({ kind: Math.floor((st - 1) / 10) % MONS.length, tint: Math.floor((st - 1) / 60) % 3, boss: isBoss(st) });
 const getL = r => r.t === "g" ? S.grid[r.i] : S.lanes[r.i].lvl;
 const setL = (r, v) => { if (r.t === "g") S.grid[r.i] = v; else S.lanes[r.i].lvl = v; if (v > S.best) S.best = v; };
@@ -41,7 +73,7 @@ function layout() {
     const listW = clamp(W * .085, 62, 120); L.list = { x: 0, y: 0, w: listW, h: H };
     const rx = listW, rw = W - listW, mw = rw * .44, lx = rx + mw, lw = rw - mw;
     const topH = H * .19; cs = Math.max(40, Math.min(mw * .3, (H - topH - H * .22) / 3.35)); gap = cs * .09; gw = 3 * cs + 2 * gap; gx = rx + (mw - gw) / 2; gy = topH;
-    L.counter = { x: rx + mw / 2, y: H * .095, size: Math.min(H * .09, mw * .13) };
+    L.counter = { x: rx + mw / 2, y: H * .095, size: Math.min(H * .09, mw * .13) }; L.mute = { x: rx + 12, y: 12, w: 44, h: 44 };
     const bh = cs * .62, bw = gw * .94; L.buy = { x: rx + (mw - bw) / 2, y: gy + gw + cs * .26, w: bw, h: bh };
     L.laneArea = { x: lx, y: 0, w: lw, h: H };
     const m = H * .02, rh = (H - m * 2) / 3;
@@ -51,7 +83,7 @@ function layout() {
     }
   } else {
     const topbar = H * .085, laneB = H * .54, rh = (laneB - topbar) / 3;
-    L.counter = { x: W / 2, y: topbar / 2, size: Math.min(topbar * .8, W * .12) }; L.laneArea = { x: 0, y: 0, w: W, h: laneB };
+    L.counter = { x: W / 2, y: topbar / 2, size: Math.min(topbar * .8, W * .12) }; L.mute = { x: 8, y: Math.max(4, topbar / 2 - 20), w: 40, h: 40 }; L.laneArea = { x: 0, y: 0, w: W, h: laneB };
     for (let i = 0; i < 3; i++) {
       const y0 = topbar + i * rh, ss = Math.min(rh * .8, W * .24);
       L.lanes.push({ y0, rh, slot: { x: W * .03, y: y0 + (rh - ss) / 2 + rh * .03, w: ss, h: ss }, floorY: y0 + rh * .9, monX: W * .57, monH: Math.min(rh * .7, W * .36), chestX: W * .895, chestS: Math.min(rh * .5, W * .17), x0: W * .01, x1: W * .99 });
@@ -116,26 +148,26 @@ function coinBurst(x, y, n, size) { for (let i = 0; i < n; i++) { const a = -Mat
 
 function merge(src, dst) {
   const a = getL(src); setL(dst, a + 1); setL(src, 0); S.merges++; popOf(dst)[dst.i] = 1; const rc = refRect(dst), cx = rc.x + rc.w / 2, cy = rc.y + rc.h * .55;
-  sparks(cx, cy, 14, "#fff6a8", 190); puffs(cx, cy + rc.h * .2, 4, rc.w);
+  sparks(cx, cy, 14, "#fff6a8", 190); puffs(cx, cy + rc.h * .2, 4, rc.w); sfx.merge(a + 1);
   if (a + 1 > bestShown) { bestShown = a + 1; banner = { lvl: a + 1, t: 0 }; sparks(cx, cy, 14, "#ffd1ff", 230); }
 }
 function apply(src, dst) {
   if (src.t === dst.t && src.i === dst.i) return;
   const a = getL(src), b = getL(dst);
   if (!a) return;
-  if (!b) { setL(dst, a); setL(src, 0); popOf(dst)[dst.i] = .6; }
+  if (!b) { setL(dst, a); setL(src, 0); popOf(dst)[dst.i] = .6; sfx.move(); }
   else if (a === b && a < MAXLVL) merge(src, dst);
-  else { setL(dst, a); setL(src, b); popOf(dst)[dst.i] = .6; popOf(src)[src.i] = .6; }
+  else { setL(dst, a); setL(src, b); popOf(dst)[dst.i] = .6; popOf(src)[src.i] = .6; sfx.move(); }
 }
 function buy() {
   const sl = spawnLvl(S.best), cost = costOf(sl, S.buys[sl] | 0), b = L.buy, fc = freeCell();
-  if (fc < 0) { buyShake = 1; say("Kein Platz mehr", b.x + b.w / 2, b.y - 10, "#ffb0b0", 24); return; }
-  if (S.coins < cost) { buyShake = 1; say("Zu wenig Münzen", b.x + b.w / 2, b.y - 10, "#ffb0b0", 24); return; }
-  S.coins -= cost; S.buys[sl] = (S.buys[sl] | 0) + 1; S.grid[fc] = sl; gridPop[fc] = 1; const c = L.cells[fc]; puffs(c.x + c.w / 2, c.y + c.h * .8, 5, c.w); sparks(c.x + c.w / 2, c.y + c.h / 2, 6, "#bff7ff", 120);
+  if (fc < 0) { buyShake = 1; say("Kein Platz mehr", b.x + b.w / 2, b.y - 10, "#ffb0b0", 24); sfx.fail(); return; }
+  if (S.coins < cost) { buyShake = 1; say("Zu wenig Münzen", b.x + b.w / 2, b.y - 10, "#ffb0b0", 24); sfx.fail(); return; }
+  S.coins -= cost; S.buys[sl] = (S.buys[sl] | 0) + 1; S.grid[fc] = sl; gridPop[fc] = 1; const c = L.cells[fc]; puffs(c.x + c.w / 2, c.y + c.h * .8, 5, c.w); sparks(c.x + c.w / 2, c.y + c.h / 2, 6, "#bff7ff", 120); sfx.buy();
 }
 function hitMonster(i, dmg) {
   const ln = S.lanes[i], r = R[i], Ls = L.lanes[i], crit = Math.random() < .12; if (crit) dmg *= 2;
-  ln.hp -= dmg; r.swing = 1; r.hit = 1;
+  ln.hp -= dmg; r.swing = 1; r.hit = 1; sfx.hit();
   say(fmt(dmg), Ls.monX + (Math.random() - .5) * Ls.monH * .5, Ls.floorY - Ls.monH * (.5 + Math.random() * .4), crit ? "#ffe45a" : "#ffffff", crit ? 30 : 22);
   sparks(Ls.monX - Ls.monH * .2, Ls.floorY - Ls.monH * .45, crit ? 7 : 3, crit ? "#ffe45a" : "#ffffff", 120);
   if (ln.hp <= 0) kill(i);
@@ -144,11 +176,11 @@ function kill(i) {
   const ln = S.lanes[i], r = R[i], Ls = L.lanes[i], rew = rewardOf(ln.stage); S.coins += rew; S.kills++; r.dying = 1;
   coinBurst(Ls.monX, Ls.floorY - Ls.monH * .5, Math.min(10, 4 + Math.floor(Math.log10(rew + 1))), Ls.monH * .2);
   puffs(Ls.monX, Ls.floorY - Ls.monH * .3, 6, Ls.monH); say("+" + fmt(rew), Ls.monX, Ls.floorY - Ls.monH * 1.05, "#ffd23f", 28);
-  ln.chest++; r.chestBump = 1;
+  sfx.kill(); ln.chest++; r.chestBump = 1;
   if (ln.chest >= CHEST_EVERY) { ln.chest = 0; openChest(i, rew); }
 }
 function openChest(i, rew) {
-  const r = R[i], Ls = L.lanes[i], bonus = rew * 3; S.coins += bonus; r.chestAnim = 1;
+  const r = R[i], Ls = L.lanes[i], bonus = rew * 3; S.coins += bonus; r.chestAnim = 1; sfx.chest();
   coinBurst(Ls.chestX, Ls.floorY - Ls.chestS * .5, 8, Ls.monH * .18); sparks(Ls.chestX, Ls.floorY - Ls.chestS * .6, 12, "#fff0a0", 200); say("+" + fmt(bonus), Ls.chestX, Ls.floorY - Ls.chestS * 1.2, "#ffd23f", 26);
   const fc = freeCell(); if (fc >= 0 && Math.random() < .5) { const lv = Math.min(MAXLVL, spawnLvl(S.best) + 1); S.grid[fc] = lv; if (lv > S.best) S.best = lv; gridPop[fc] = 1; const c = L.cells[fc]; sparks(c.x + c.w / 2, c.y + c.h / 2, 10, "#fff6a8", 160); say("Schleim aus der Kiste", L.grid.x + L.grid.w / 2, L.grid.y - 10, "#bff7ff", 22); }
 }
@@ -229,7 +261,7 @@ function drawLanes() {
     if (drag && !isDrag && (!ln.lvl || ln.lvl === dl)) { ctx.save(); ctx.strokeStyle = "rgba(255,246,150," + (ln.lvl === dl ? .9 : .4) * (.5 + .5 * Math.sin(time * 6)) + ")"; ctx.lineWidth = 4; rr(ctx, sl.x + 2, sl.y + 2, sl.w - 4, sl.h - 4, sl.w * .14); ctx.stroke(); ctx.restore(); }
     else if (!drag && hasG && !anyEq && !ln.lvl) { ctx.save(); ctx.strokeStyle = "rgba(255,246,150," + (.3 + .5 * Math.sin(time * 4) * .5 + .25) + ")"; ctx.lineWidth = 4; rr(ctx, sl.x + 2, sl.y + 2, sl.w - 4, sl.h - 4, sl.w * .14); ctx.stroke(); ctx.restore(); }
     /* Monster */
-    const info = monInfo(ln.stage), spr = monsterSprite(info.kind, info.tint, info.boss), mh = Ls.monH * (info.boss ? 1.16 : 1), k = mh / .9 / MON_U;
+    const info = monInfo(ln.stage), spr = monsterSprite(info.kind, info.tint, info.boss), hsz = Math.max(16, Ls.monH * .14), topU = MONS[info.kind].top + (info.boss ? .3 : .02), availH = Ls.floorY - (Ls.y0 + hsz * 1.45 + 17), upx = Math.min(Ls.monH / .9 * (info.boss ? .96 : 1), availH / topU), k = upx / MON_U, topPx = upx * topU;
     let alpha = 1, sx = 1, sy = 1, ox = 0, oy = 0;
     if (r.spawn < 1) { const e = ease(r.spawn); oy = -(1 - e) * Ls.monH * .9; alpha = Math.min(1, e * 1.4); if (e > .8) { const q = Math.sin((e - .8) / .2 * Math.PI); sy = 1 - .12 * q; sx = 1 + .1 * q; } }
     if (r.dying > 0) { const d = r.dying; alpha = d; sx = 1 + (1 - d) * .5; sy = .35 + .65 * d; }
@@ -240,10 +272,10 @@ function drawLanes() {
     ctx.restore();
     /* Lebenspunkte */
     if (r.dying <= 0) {
-      const hy = Math.max(Ls.y0 + 16, Ls.floorY - mh * 1.0 - 14), bw = Math.max(70, Ls.monH * .95), bx = Ls.monX - bw / 2, bh = 9, fr = clamp(ln.hp / hpOf(ln.stage), 0, 1);
+      const hy = Math.max(Ls.y0 + hsz * 1.45 + 2, Ls.floorY - topPx - 10), bw = Math.max(70, Ls.monH * .95), bx = Ls.monX - bw / 2, bh = 9, fr = clamp(ln.hp / hpOf(ln.stage), 0, 1);
       ctx.save(); ctx.globalAlpha = Math.min(1, r.spawn * 1.5); ctx.lineJoin = "round"; ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.fillStyle = "#2a1e3c"; rr(ctx, bx, hy, bw, bh, 4); ctx.fill(); ctx.stroke();
       if (fr > 0) { ctx.fillStyle = info.boss ? "#ff8a3c" : "#ff6a86"; rr(ctx, bx + 1, hy + 1, Math.max(6, (bw - 2) * fr), bh - 2, 3); ctx.fill(); }
-      const hsz = Math.max(18, Ls.monH * .17), str = fmt(Math.ceil(ln.hp)); ctx.font = hsz + "px \"Caveat Brush\",cursive"; const tw = ctx.measureText(str).width;
+      const str = fmt(Math.ceil(ln.hp)); ctx.font = hsz + "px \"Caveat Brush\",cursive"; const tw = ctx.measureText(str).width;
       ctx.drawImage(heartSprite(), Ls.monX - tw / 2 - hsz * 1.05, hy - hsz * 1.35, hsz * 1.1, hsz * 1.1); txt(str, Ls.monX - tw / 2 + hsz * .1, hy - hsz * .75, hsz, "#fff", "left");
       const br = Math.max(11, hsz * .62), bcx = bx - br - 4, bcy = hy + bh / 2; ctx.lineWidth = 2.5; ctx.fillStyle = info.boss ? "#ff8a3c" : "#ffd23f"; ctx.beginPath(); ctx.arc(bcx, bcy, br, 0, 7); ctx.fill(); ctx.stroke(); ctx.font = (br * 1.15) + "px \"Caveat Brush\",cursive"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = INK; ctx.fillText(String(ln.stage), bcx, bcy + 1);
       ctx.restore();
@@ -282,14 +314,23 @@ function drawParts() {
   for (const f of floats) { const k = f.t / f.life; ctx.globalAlpha = k < .7 ? 1 : 1 - (k - .7) / .3; txt(f.text, f.x, f.y, f.size * (k < .15 ? .7 + k / .15 * .3 : 1), f.col); ctx.globalAlpha = 1; }
 }
 function drawBanner() {
-  if (!banner) return; const k = banner.t, a = k < .3 ? k / .3 : k > 2.5 ? 1 - (k - 2.5) / .5 : 1, c = L.counter, y = c.y + c.size * 1.7, w = Math.min(VW * .8, 340);
+  if (!banner) return; const k = banner.t, a = k < .3 ? k / .3 : k > 2.5 ? 1 - (k - 2.5) / .5 : 1, c = L.counter, y = c.y + c.size * 1.25, w = Math.min(VW * .8, 340);
   ctx.save(); ctx.globalAlpha = clamp(a, 0, 1); const sk = sketch(ctx, 7.7, 10, 1.2); ctx.lineWidth = 3.5; rr(sk, c.x - w / 2, y - 34, w, 68, 14); ctx.fillStyle = "#f6efd9"; sk.fill(); ctx.strokeStyle = INK; sk.stroke();
-  drawSlime(banner.lvl, c.x - w / 2 + 46, y + 28, 52, {}); txt("Neuer Schleim", c.x + 38, y - 11, 24, "#1d2742", "center", "rgba(0,0,0,0)"); txt(slimeName(banner.lvl) + " (Stufe " + banner.lvl + ")", c.x + 38, y + 16, 20, "#2b7a86", "center", "rgba(0,0,0,0)"); ctx.restore();
+  if (banner.lvl) { drawSlime(banner.lvl, c.x - w / 2 + 46, y + 28, 52, {}); txt("Neuer Schleim", c.x + 38, y - 11, 24, "#1d2742", "center", "rgba(0,0,0,0)"); txt(slimeName(banner.lvl) + " (Stufe " + banner.lvl + ")", c.x + 38, y + 16, 20, "#2b7a86", "center", "rgba(0,0,0,0)"); }
+  else { txt(banner.title, c.x, y - 11, 24, "#1d2742", "center", "rgba(0,0,0,0)"); txt(banner.sub, c.x, y + 16, 20, "#2b7a86", "center", "rgba(0,0,0,0)"); }
+  ctx.restore();
+}
+function drawMute() {
+  const m = L.mute; if (!m) return; const cx = m.x + m.w / 2, cy = m.y + m.h / 2, r = m.w / 2; ctx.save(); ctx.lineJoin = ctx.lineCap = "round"; ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.fillStyle = "#f6efd9"; ctx.beginPath(); ctx.arc(cx, cy, r - 2, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = INK; ctx.beginPath(); ctx.moveTo(cx - r * .5, cy - r * .18); ctx.lineTo(cx - r * .24, cy - r * .18); ctx.lineTo(cx + r * .06, cy - r * .46); ctx.lineTo(cx + r * .06, cy + r * .46); ctx.lineTo(cx - r * .24, cy + r * .18); ctx.lineTo(cx - r * .5, cy + r * .18); ctx.closePath(); ctx.fill();
+  ctx.lineWidth = 2.6; if (S.mute) { ctx.strokeStyle = "#b8473a"; ctx.beginPath(); ctx.moveTo(cx - r * .55, cy + r * .6); ctx.lineTo(cx + r * .55, cy - r * .6); ctx.stroke(); }
+  else { ctx.beginPath(); ctx.arc(cx + r * .06, cy, r * .3, -.9, .9); ctx.stroke(); ctx.beginPath(); ctx.arc(cx + r * .06, cy, r * .52, -.9, .9); ctx.stroke(); }
+  ctx.restore();
 }
 function render() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.lineJoin = ctx.lineCap = "round"; ctx.clearRect(0, 0, VW, VH);
   ctx.drawImage(bgC, 0, 0, VW, VH);
-  drawList(); drawCounter(); drawGrid(); drawLanes(); drawBuy(); drawParts(); drawBanner();
+  drawList(); drawCounter(); drawMute(); drawGrid(); drawLanes(); drawBuy(); drawParts(); drawBanner();
   if (drag) { const sz = L.grid.cs * .8, rc = drag; ctx.save(); ctx.fillStyle = "rgba(10,10,40,.3)"; ctx.beginPath(); ctx.ellipse(rc.x, rc.y + sz * .42, sz * .42, sz * .08, 0, 0, 7); ctx.fill(); ctx.restore(); drawSlime(drag.lvl, rc.x, rc.y + sz * .35, sz, { ph: 3, ang: .45 }); }
 }
 
@@ -303,7 +344,8 @@ function hitSlot(p) {
 }
 let down = null;
 cv.addEventListener("pointerdown", e => {
-  e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (x) { } const p = pt(e); down = { x: p.x, y: p.y, t: performance.now(), moved: 0, mode: null, scroll: listScroll };
+  e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (x) { } audio(); const p = pt(e); down = { x: p.x, y: p.y, t: performance.now(), moved: 0, mode: null, scroll: listScroll };
+  if (L.mute && inR(p, L.mute)) { down.mode = "mute"; return; }
   if (inR(p, L.buy)) { down.mode = "buy"; buyPress = 1; return; }
   if (L.list && p.x < L.list.w) { down.mode = "list"; return; }
   const ref = hitSlot(p); if (ref && getL(ref)) { down.mode = "slime"; down.ref = ref; drag = { ref, lvl: getL(ref), x: p.x, y: p.y - L.grid.cs * .25 }; }
@@ -316,6 +358,7 @@ cv.addEventListener("pointermove", e => {
 });
 function release(e, cancel) {
   if (!down) return; const p = pt(e), d = down; down = null;
+  if (d.mode === "mute") { if (!cancel && inR(p, L.mute)) { S.mute = !S.mute; save(); } return; }
   if (d.mode === "buy") { buyPress = 0; if (!cancel && inR(p, L.buy)) buy(); return; }
   if (d.mode === "slime" && drag) {
     const tap = d.moved < 10 && performance.now() - d.t < 450; drag = null; if (cancel) return;
@@ -342,6 +385,6 @@ window.addEventListener("pagehide", save); document.addEventListener("visibility
 setInterval(save, 4000);
 let last = performance.now();
 function frame(now) { const dt = Math.min(.1, (now - last) / 1000); last = now; update(dt); render(); requestAnimationFrame(frame); }
-function start() { resize(); listScroll = L.list ? clamp(L.list.head + (S.best - 3) * L.list.itemH - L.list.h * .3, 0, L.list.max) : 0; requestAnimationFrame(t => { last = t; frame(t); }); }
+function start() { const away = (Date.now() - (S.saved || Date.now())) / 1000; if (away > 45 && S.lanes.some(l => l.lvl)) { const o = offlineProgress(Math.min(away, 7200)); if (o.gain > 0) banner = { title: "Willkommen zurück", sub: "+" + fmt(o.gain) + " Münzen (" + o.kills + " Siege)", t: 0 }; } resize(); listScroll = L.list ? clamp(L.list.head + (S.best - 3) * L.list.itemH - L.list.h * .3, 0, L.list.max) : 0; requestAnimationFrame(t => { last = t; frame(t); }); }
 Promise.race([Promise.all([document.fonts.load("28px \"Caveat Brush\""), document.fonts.load("18px \"Patrick Hand\"")]), new Promise(r => setTimeout(r, 1500))]).then(start, start);
 window.G = { S, R, buy, apply, tapSlime, update, render, get L() { return L; } };

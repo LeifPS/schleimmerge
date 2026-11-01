@@ -1,6 +1,6 @@
 "use strict";
 /* Reine Rechenfunktionen (ohne Browser), damit man sie in Node simulieren kann */
-const MAXLVL = 72;
+const MAXLVL = 84;
 const BEAT = 0.85;                                   // Sekunden zwischen zwei Schlägen
 const dpsOf = l => 4 * Math.pow(2.15, l - 1);         // Schaden pro Sekunde eines Schleims
 const isBoss = st => st % 10 === 0;
@@ -11,7 +11,7 @@ const spawnLvl = best => Math.max(1, best - 5);       // welche Stufe der Kauf-B
 const costOf = (lvl, n) => Math.floor(12 * Math.pow(2.3, lvl - 1) * Math.pow(1.12, n));   // n = Schleime, die man gerade besitzt (Raster + Ausgerüstete)
 const CHEST_EVERY = 5;                               // Kisten öffnen sich nach so vielen Siegen
 
-const SUFFIX = ["", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc", "Ud", "Dd"];
+const SUFFIX = ["", "k", "m", "b", "t", "qa", "qi", "sx", "sp", "oc", "no", "dc", "ud", "dd"];
 function fmt(n) {
   if (!isFinite(n)) return "unendlich";
   if (n < 1000) return String(Math.floor(n));

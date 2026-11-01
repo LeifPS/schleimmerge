@@ -225,15 +225,21 @@ function swingAng(r) {   // Ausholen, Zuschlagen, Zurück
 }
 /* Bewegte Effekte der Kristall-, Feuer- und Magiewaffen: pulsierendes Leuchten, Funkeln, aufsteigende Glut, kreisende Sterne */
 function weaponFx(c, l, t, u) {
-  const a = HEAD[wType(l)], ax = a[0] * u, ay = a[1] * u, tm = time, pr = .5 + .5 * Math.sin(tm * 4 + l), col = t === 3 ? "120,230,255" : t === 4 ? "255,150,50" : "210,130,255", hc = t === 5 ? hsl(tm * 90 + l * 20, 1, .6) : null;
+  const a = HEAD[wType(l)], ax = a[0] * u, ay = a[1] * u, tm = time, pr = .5 + .5 * Math.sin(tm * 4 + l), col = t === 3 ? "120,230,255" : t === 4 ? "255,150,50" : "210,130,255", hc = t === 5 ? hsl(tm * 90 + l * 20, 1, .6) : t === 6 ? hsl(40 + Math.sin(tm * 2 + l) * 25, 1, .68) : null;
   c.save(); c.globalCompositeOperation = "lighter"; const rg = c.createRadialGradient(ax, ay, 0, ax, ay, u * .5); if (hc) { rg.addColorStop(0, hexA(hc, .22 + .2 * pr)); rg.addColorStop(1, hexA(hc, 0)); } else { rg.addColorStop(0, "rgba(" + col + "," + (.14 + .14 * pr) + ")"); rg.addColorStop(1, "rgba(" + col + ",0)"); } c.fillStyle = rg; c.fillRect(ax - u * .5, ay - u * .5, u, u); c.restore();
   c.save();
   if (t === 3) { for (let i = 0; i < 5; i++) { const ph = (tm * 1.1 + i * .2 + l * .13) % 1; c.globalAlpha = Math.sin(ph * Math.PI); c.fillStyle = "#fff"; sparklePath(c, ax + Math.cos(i * 2.1 + l) * u * .32, ay + Math.sin(i * 1.7 + l) * u * .32, u * .06 * (.4 + ph)); c.fill(); } }
   else if (t === 4) { for (let i = 0; i < 8; i++) { const ph = (tm * .85 + i / 8) % 1; c.globalAlpha = 1 - ph; c.fillStyle = i % 2 ? "#ffd34a" : "#ff7a2a"; c.beginPath(); c.arc(ax + Math.sin(i * 2.7 + ph * 5) * u * .15, ay + u * .05 - ph * u * .62, u * .024 * (1 - ph * .5), 0, 7); c.fill(); } }
-  else {
+  else if (t === 5) {
     c.globalCompositeOperation = "lighter";
     for (let i = 0; i < 5; i++) { const ang = tm * (i % 2 ? -2.6 : 2.2) + i * 1.257, rr = u * (.3 + .1 * (i % 3)); c.globalAlpha = .75 + .25 * Math.sin(tm * 5 + i); c.fillStyle = hsl(tm * 120 + i * 72, 1, .72); starPath(c, ax + Math.cos(ang) * rr, ay + Math.sin(ang) * rr * .32, u * .05, u * .02, ang); c.fill(); }
     for (let i = 0; i < 9; i++) { const ph = (tm * 1.1 + i / 9) % 1, a = i * 2.4 + l; c.globalAlpha = Math.sin(ph * Math.PI) * .9; c.fillStyle = hsl(tm * 120 + i * 40, 1, .78); sparklePath(c, ax + Math.cos(a) * u * (.12 + ph * .38), ay + Math.sin(a) * u * (.1 + ph * .3) - ph * u * .12, u * .05 * (1 - ph * .4)); c.fill(); }
+  }
+  else {
+    c.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 8; i++) { const ang = tm * (i % 2 ? -1.9 : 1.6) + i * .785, rr = u * (.34 + .1 * (i % 2)), tilt = i % 2 ? .5 : -.5, ex = Math.cos(ang) * rr, ey = Math.sin(ang) * rr * .3; c.globalAlpha = .8 + .2 * Math.sin(tm * 6 + i); c.fillStyle = i % 3 ? "#fff3a8" : "#ffb4ee"; starPath(c, ax + ex * Math.cos(tilt) - ey * Math.sin(tilt), ay + ex * Math.sin(tilt) + ey * Math.cos(tilt), u * .055, u * .022, ang); c.fill(); }
+    for (let i = 0; i < 14; i++) { const ph = (tm * .9 + i / 14) % 1, a = i * 2.4 + l * 1.3, rr = u * (.1 + ph * .52); c.globalAlpha = Math.sin(ph * Math.PI); c.fillStyle = i % 3 === 0 ? "#9ff0ff" : i % 3 === 1 ? "#fff3a8" : "#ffb4ee"; sparklePath(c, ax + Math.cos(a) * rr, ay + Math.sin(a) * rr * .7, u * .055 * (1 - ph * .5)); c.fill(); }
+    const cp = (tm * .55 + l * .17) % 1; if (cp < .4) { const k = cp / .4; c.globalAlpha = Math.sin(k * Math.PI); const sx = ax - u * .5 + k * u, sy = ay - u * .55 + k * u * .3, tg = c.createLinearGradient(sx, sy, sx - u * .3, sy - u * .09); tg.addColorStop(0, "rgba(255,255,255,.95)"); tg.addColorStop(1, "rgba(255,255,255,0)"); c.strokeStyle = tg; c.lineWidth = u * .02; c.beginPath(); c.moveTo(sx, sy); c.lineTo(sx - u * .3, sy - u * .09); c.stroke(); }
   }
   c.restore();
 }

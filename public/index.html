@@ -12,7 +12,7 @@ canvas{display:block;width:100vw;height:100vh;height:100dvh;touch-action:none;-w
 </style><body><canvas id="cv"></canvas><script>
 "use strict";
 /* Reine Rechenfunktionen (ohne Browser), damit man sie in Node simulieren kann */
-const MAXLVL = 60;
+const MAXLVL = 72;
 const BEAT = 0.85;                                   // Sekunden zwischen zwei Schlägen
 const dpsOf = l => 4 * Math.pow(2.15, l - 1);         // Schaden pro Sekunde eines Schleims
 const isBoss = st => st % 10 === 0;
@@ -75,7 +75,8 @@ function sketch(c, seed, seg, amp) {
   return new Proxy(c, { get(t, p) { if (p in O) return O[p]; const v = t[p]; return typeof v === "function" ? v.bind(t) : v; }, set(t, p, v) { t[p] = v; return true; } });
 }
 /* Füllen und mit Tinte umranden */
-function FS(c, fill) { if (fill) { c.fillStyle = fill; c.fill(); } c.strokeStyle = INK; c.stroke(); }
+let FSMODE = 0;   // 0 = normal, 1 = nur Füllung, 2 = nur Kontur (für die animierten Magiewaffen)
+function FS(c, fill) { if (fill && FSMODE !== 2) { c.fillStyle = fill; c.fill(); } if (FSMODE !== 1) { c.strokeStyle = INK; c.stroke(); } }
 /* Sprite zeichnen: Leinwand w*h, Ursprung (ox,oy), Einheit u. fn bekommt einen wackelnden Kontext in Einheiten */
 function makeSprite(w, h, ox, oy, u, seed, fn, amp) {
   const cv = mkCanvas(w, h), g = cv.getContext("2d");
@@ -257,6 +258,70 @@ function weaponSprite(l) {
     if (t === 3) { for (const d of [[.2, -.3, .07], [-.22, -.1, .05], [.1, .2, .045], [-.12, -.42, .04]]) { sparklePath(g, ax + d[0], ay + d[1], d[2]); g.fill(); } }
     if (t === 4) { for (const d of [[-.2, -.5, .018], [.16, -.62, .022], [.04, -.74, .016], [-.08, -.56, .014], [.26, -.44, .015]]) { g.fillStyle = "#ffd34a"; g.beginPath(); g.arc(ax + d[0], ay + d[1], d[2], 0, 7); g.fill(); } }
   }, .006));
+}
+
+/* ---------- Magiewaffen (Stufe 61+): Farbverlauf läuft ständig durch die Waffe ----------
+   Die Waffe wird in Füllung und Linien getrennt vorgezeichnet. Pro Bild wird ein wandernder Regenbogen
+   in die Füllung multipliziert, danach kommen die Linien wieder obendrauf. */
+const magicCache = {}, magicOut = {};
+let magicTmp = null, gradFrameKey = -1, gradCv = null;
+function magicParts(l) {
+  if (magicCache[l]) return magicCache[l];
+  const type = wType(l), ax = HEAD[type][0], ay = HEAD[type][1], seed = l * .53 + 3;
+  const M = { m: "#ffffff", d: "#b4aedc", h: "#5a4aa0", g: "#ffffff" };
+  const ring = (g, a0, a1, w) => { g.save(); g.translate(ax, ay); g.rotate(-.45); g.lineCap = "round"; g.lineWidth = w; g.beginPath(); g.ellipse(0, 0, .46, .15, 0, a0, a1); g.stroke(); g.restore(); };
+  const orbs = (g, fill) => { g.save(); g.translate(ax, ay); g.rotate(-.45); for (const a of [.12, Math.PI - .12]) { g.beginPath(); g.arc(Math.cos(a) * .46, Math.sin(a) * .15, .05, 0, 7); if (fill) { g.fillStyle = "#fff"; g.fill(); } else { g.strokeStyle = INK; g.lineWidth = .026; g.stroke(); } } g.restore(); };
+  const B0 = Math.PI + .12, B1 = 2 * Math.PI - .12, F0 = .12, F1 = Math.PI - .12;
+  const mk = fn => makeSprite(WP_W, WP_W, WP_OX, WP_OY, WP_U, seed, fn, .006);
+  const parts = {};
+  FSMODE = 1;
+  try {
+    parts.aFill = mk((c, g) => {
+      g.strokeStyle = "#fff"; ring(g, B0, B1, .07);
+      c.lineWidth = .04; weaponShape(c, g, type, M);
+      g.save(); g.globalCompositeOperation = "source-atop";
+      const sh = g.createLinearGradient(-.32, 0, .32, 0); sh.addColorStop(0, "rgba(255,255,255,0)"); sh.addColorStop(.5, "rgba(255,255,255,0)"); sh.addColorStop(1, "rgba(60,20,110,.42)"); g.fillStyle = sh; g.fillRect(-.9, -1.4, 1.8, 1.7);
+      const tp = g.createLinearGradient(0, -1, 0, .1); tp.addColorStop(0, "rgba(255,255,255,0)"); tp.addColorStop(1, "rgba(40,0,90,.2)"); g.fillStyle = tp; g.fillRect(-.9, -1.4, 1.8, 1.7);
+      g.restore();
+    });
+    parts.cFill = mk((c, g) => { g.strokeStyle = "#fff"; ring(g, F0, F1, .07); orbs(g, true); });
+    FSMODE = 2;
+    parts.aLine = mk((c, g) => {
+      g.strokeStyle = INK; ring(g, B0, B1, .098); g.globalCompositeOperation = "destination-out"; ring(g, B0, B1, .05); g.globalCompositeOperation = "source-over";
+      c.lineWidth = .04; weaponShape(c, g, type, M);
+      g.save(); g.globalCompositeOperation = "source-atop"; g.lineCap = "round";
+      for (let i = 0; i < 6; i++) { g.strokeStyle = "rgba(255,255,255," + (i % 2 ? .5 : .28) + ")"; g.lineWidth = .02 + (i % 3) * .006; g.beginPath(); g.moveTo(ax - .5 + i * .2, ay - .55); g.lineTo(ax - .3 + i * .2, ay + .5); g.stroke(); }
+      g.strokeStyle = "rgba(255,255,255,.85)"; g.lineWidth = .022; g.beginPath(); g.moveTo(-.025, -.95); g.lineTo(-.025, -.45); g.stroke();
+      g.restore();
+      g.fillStyle = "rgba(255,255,255,.95)"; for (const d of [[-.1, -.2, .04], [.12, .05, .035], [-.04, .22, .03], [.08, -.38, .04]]) { sparklePath(g, ax + d[0], ay + d[1], d[2]); g.fill(); }
+    });
+    parts.cLine = mk((c, g) => { g.strokeStyle = INK; ring(g, F0, F1, .098); g.globalCompositeOperation = "destination-out"; ring(g, F0, F1, .05); g.globalCompositeOperation = "source-over"; g.save(); g.translate(0, 0); orbs(g, false); g.restore(); });
+  } finally { FSMODE = 0; }
+  return magicCache[l] = parts;
+}
+/* Wandernder Regenbogen, einmal pro Bild für alle Waffen gleich (in Sprite-Pixeln) */
+function magicGrad(key, tm) {
+  if (gradFrameKey === key && gradCv) return gradCv;
+  gradFrameKey = key; if (!gradCv) gradCv = mkCanvas(WP_W, WP_W);
+  const g = gradCv.getContext("2d"), Lp = 170, dx = .5, dy = .87, sh = ((tm * .55) % 1) * Lp, cx = WP_OX, cy = WP_OY - WP_U * .5;
+  const x0 = cx - dx * Lp * 1.5 + dx * sh, y0 = cy - dy * Lp * 1.5 + dy * sh, gr = g.createLinearGradient(x0, y0, x0 + dx * Lp * 3, y0 + dy * Lp * 3);
+  const N = 8; for (let k = 0; k <= N * 3; k++) gr.addColorStop(k / (N * 3), hsl(((k % N) / N) * 360 + 300, .95, .66));
+  g.clearRect(0, 0, WP_W, WP_W); g.fillStyle = gr; g.fillRect(0, 0, WP_W, WP_W); return gradCv;
+}
+function weaponFrame(l, tm) {
+  if (wTier(l) < 5) return weaponSprite(l);
+  const key = Math.floor(tm * 20);
+  let o = magicOut[l]; if (!o) o = magicOut[l] = { cv: mkCanvas(WP_W, WP_W), key: -1 };
+  if (o.key === key) return o.cv; o.key = key;
+  const P = magicParts(l), G = magicGrad(key, tm + l * .31), ax = HEAD[wType(l)][0], ay = HEAD[wType(l)][1], g = o.cv.getContext("2d");
+  if (!magicTmp) magicTmp = mkCanvas(WP_W, WP_W); const t = magicTmp.getContext("2d");
+  const color = fill => { t.globalCompositeOperation = "source-over"; t.clearRect(0, 0, WP_W, WP_W); t.drawImage(G, 0, 0); t.globalCompositeOperation = "multiply"; t.drawImage(fill, 0, 0); t.globalCompositeOperation = "destination-in"; t.drawImage(fill, 0, 0); t.globalCompositeOperation = "source-over"; g.drawImage(magicTmp, 0, 0); };
+  g.clearRect(0, 0, WP_W, WP_W);
+  g.save(); g.setTransform(WP_U, 0, 0, WP_U, WP_OX, WP_OY);
+  const h = (tm * 90 + l * 20) % 360, gl = g.createRadialGradient(ax, ay, .02, ax, ay, .64); gl.addColorStop(0, hsl(h, 1, .7).replace("#", "#") + "99"); gl.addColorStop(1, hsl(h, 1, .7) + "00"); g.fillStyle = gl; g.fillRect(-.9, -1.4, 1.8, 1.7);
+  g.restore();
+  color(P.aFill); g.drawImage(P.aLine, 0, 0); color(P.cFill); g.drawImage(P.cLine, 0, 0);
+  return o.cv;
 }
 
 /* ---------- Monster ---------- */
@@ -660,12 +725,16 @@ function swingAng(r) {   // Ausholen, Zuschlagen, Zurück
 }
 /* Bewegte Effekte der Kristall-, Feuer- und Magiewaffen: pulsierendes Leuchten, Funkeln, aufsteigende Glut, kreisende Sterne */
 function weaponFx(c, l, t, u) {
-  const a = HEAD[wType(l)], ax = a[0] * u, ay = a[1] * u, tm = time, pr = .5 + .5 * Math.sin(tm * 4 + l), col = t === 3 ? "120,230,255" : t === 4 ? "255,150,50" : "210,130,255";
-  c.save(); c.globalCompositeOperation = "lighter"; const rg = c.createRadialGradient(ax, ay, 0, ax, ay, u * .5); rg.addColorStop(0, "rgba(" + col + "," + (.14 + .14 * pr) + ")"); rg.addColorStop(1, "rgba(" + col + ",0)"); c.fillStyle = rg; c.fillRect(ax - u * .5, ay - u * .5, u, u); c.restore();
+  const a = HEAD[wType(l)], ax = a[0] * u, ay = a[1] * u, tm = time, pr = .5 + .5 * Math.sin(tm * 4 + l), col = t === 3 ? "120,230,255" : t === 4 ? "255,150,50" : "210,130,255", hc = t === 5 ? hsl(tm * 90 + l * 20, 1, .6) : null;
+  c.save(); c.globalCompositeOperation = "lighter"; const rg = c.createRadialGradient(ax, ay, 0, ax, ay, u * .5); if (hc) { rg.addColorStop(0, hexA(hc, .22 + .2 * pr)); rg.addColorStop(1, hexA(hc, 0)); } else { rg.addColorStop(0, "rgba(" + col + "," + (.14 + .14 * pr) + ")"); rg.addColorStop(1, "rgba(" + col + ",0)"); } c.fillStyle = rg; c.fillRect(ax - u * .5, ay - u * .5, u, u); c.restore();
   c.save();
   if (t === 3) { for (let i = 0; i < 5; i++) { const ph = (tm * 1.1 + i * .2 + l * .13) % 1; c.globalAlpha = Math.sin(ph * Math.PI); c.fillStyle = "#fff"; sparklePath(c, ax + Math.cos(i * 2.1 + l) * u * .32, ay + Math.sin(i * 1.7 + l) * u * .32, u * .06 * (.4 + ph)); c.fill(); } }
   else if (t === 4) { for (let i = 0; i < 8; i++) { const ph = (tm * .85 + i / 8) % 1; c.globalAlpha = 1 - ph; c.fillStyle = i % 2 ? "#ffd34a" : "#ff7a2a"; c.beginPath(); c.arc(ax + Math.sin(i * 2.7 + ph * 5) * u * .15, ay + u * .05 - ph * u * .62, u * .024 * (1 - ph * .5), 0, 7); c.fill(); } }
-  else { for (let i = 0; i < 3; i++) { const ang = tm * 2.2 + i * 2.094; c.globalAlpha = .7 + .3 * Math.sin(tm * 5 + i); c.fillStyle = i % 2 ? "#ffd6ff" : "#bff4ff"; starPath(c, ax + Math.cos(ang) * u * .42, ay + Math.sin(ang) * u * .13, u * .05, u * .022, ang); c.fill(); } }
+  else {
+    c.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 5; i++) { const ang = tm * (i % 2 ? -2.6 : 2.2) + i * 1.257, rr = u * (.3 + .1 * (i % 3)); c.globalAlpha = .75 + .25 * Math.sin(tm * 5 + i); c.fillStyle = hsl(tm * 120 + i * 72, 1, .72); starPath(c, ax + Math.cos(ang) * rr, ay + Math.sin(ang) * rr * .32, u * .05, u * .02, ang); c.fill(); }
+    for (let i = 0; i < 9; i++) { const ph = (tm * 1.1 + i / 9) % 1, a = i * 2.4 + l; c.globalAlpha = Math.sin(ph * Math.PI) * .9; c.fillStyle = hsl(tm * 120 + i * 40, 1, .78); sparklePath(c, ax + Math.cos(a) * u * (.12 + ph * .38), ay + Math.sin(a) * u * (.1 + ph * .3) - ph * u * .12, u * .05 * (1 - ph * .4)); c.fill(); }
+  }
   c.restore();
 }
 function drawSlime(l, cx, by, size, o) {
@@ -675,7 +744,7 @@ function drawSlime(l, cx, by, size, o) {
   const dx = -SL_OX * k, dy = -SL_OY * k, dw = SL_W * k;
   ctx.drawImage(slimeSprite(l), dx, dy, dw, dw);
   const blink = ((time * .6 + l * .37) % 4) < .12; ctx.drawImage(faceSprite(l, o.attack ? 2 : blink ? 1 : 0), dx, dy, dw, dw);
-  const wk = size * 1.05 / WP_U; ctx.save(); ctx.translate(size * .42, -size * .2); ctx.rotate(o.ang != null ? o.ang : .25 + Math.sin(time * 2 + l) * .04); ctx.drawImage(weaponSprite(l), -WP_OX * wk, -WP_OY * wk, WP_W * wk, WP_W * wk); if (wTier(l) >= 3) weaponFx(ctx, l, wTier(l), WP_U * wk); ctx.restore();
+  const wk = size * 1.05 / WP_U; ctx.save(); ctx.translate(size * .42, -size * .2); ctx.rotate(o.ang != null ? o.ang : .25 + Math.sin(time * 2 + l) * .04); ctx.drawImage(weaponFrame(l, time), -WP_OX * wk, -WP_OY * wk, WP_W * wk, WP_W * wk); if (wTier(l) >= 3) weaponFx(ctx, l, wTier(l), WP_U * wk); ctx.restore();
   ctx.restore();
 }
 function drawLocked(l, cx, by, size) { const k = size / SL_U; ctx.globalAlpha = .55; ctx.drawImage(slimeSil(l), cx - SL_OX * k, by - SL_OY * k, SL_W * k, SL_W * k); ctx.globalAlpha = 1; }

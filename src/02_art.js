@@ -170,6 +170,70 @@ function weaponSprite(l) {
   }, .006));
 }
 
+/* ---------- Magiewaffen (Stufe 61+): Farbverlauf läuft ständig durch die Waffe ----------
+   Die Waffe wird in Füllung und Linien getrennt vorgezeichnet. Pro Bild wird ein wandernder Regenbogen
+   in die Füllung multipliziert, danach kommen die Linien wieder obendrauf. */
+const magicCache = {}, magicOut = {};
+let magicTmp = null, gradFrameKey = -1, gradCv = null;
+function magicParts(l) {
+  if (magicCache[l]) return magicCache[l];
+  const type = wType(l), ax = HEAD[type][0], ay = HEAD[type][1], seed = l * .53 + 3;
+  const M = { m: "#ffffff", d: "#b4aedc", h: "#5a4aa0", g: "#ffffff" };
+  const ring = (g, a0, a1, w) => { g.save(); g.translate(ax, ay); g.rotate(-.45); g.lineCap = "round"; g.lineWidth = w; g.beginPath(); g.ellipse(0, 0, .46, .15, 0, a0, a1); g.stroke(); g.restore(); };
+  const orbs = (g, fill) => { g.save(); g.translate(ax, ay); g.rotate(-.45); for (const a of [.12, Math.PI - .12]) { g.beginPath(); g.arc(Math.cos(a) * .46, Math.sin(a) * .15, .05, 0, 7); if (fill) { g.fillStyle = "#fff"; g.fill(); } else { g.strokeStyle = INK; g.lineWidth = .026; g.stroke(); } } g.restore(); };
+  const B0 = Math.PI + .12, B1 = 2 * Math.PI - .12, F0 = .12, F1 = Math.PI - .12;
+  const mk = fn => makeSprite(WP_W, WP_W, WP_OX, WP_OY, WP_U, seed, fn, .006);
+  const parts = {};
+  FSMODE = 1;
+  try {
+    parts.aFill = mk((c, g) => {
+      g.strokeStyle = "#fff"; ring(g, B0, B1, .07);
+      c.lineWidth = .04; weaponShape(c, g, type, M);
+      g.save(); g.globalCompositeOperation = "source-atop";
+      const sh = g.createLinearGradient(-.32, 0, .32, 0); sh.addColorStop(0, "rgba(255,255,255,0)"); sh.addColorStop(.5, "rgba(255,255,255,0)"); sh.addColorStop(1, "rgba(60,20,110,.42)"); g.fillStyle = sh; g.fillRect(-.9, -1.4, 1.8, 1.7);
+      const tp = g.createLinearGradient(0, -1, 0, .1); tp.addColorStop(0, "rgba(255,255,255,0)"); tp.addColorStop(1, "rgba(40,0,90,.2)"); g.fillStyle = tp; g.fillRect(-.9, -1.4, 1.8, 1.7);
+      g.restore();
+    });
+    parts.cFill = mk((c, g) => { g.strokeStyle = "#fff"; ring(g, F0, F1, .07); orbs(g, true); });
+    FSMODE = 2;
+    parts.aLine = mk((c, g) => {
+      g.strokeStyle = INK; ring(g, B0, B1, .098); g.globalCompositeOperation = "destination-out"; ring(g, B0, B1, .05); g.globalCompositeOperation = "source-over";
+      c.lineWidth = .04; weaponShape(c, g, type, M);
+      g.save(); g.globalCompositeOperation = "source-atop"; g.lineCap = "round";
+      for (let i = 0; i < 6; i++) { g.strokeStyle = "rgba(255,255,255," + (i % 2 ? .5 : .28) + ")"; g.lineWidth = .02 + (i % 3) * .006; g.beginPath(); g.moveTo(ax - .5 + i * .2, ay - .55); g.lineTo(ax - .3 + i * .2, ay + .5); g.stroke(); }
+      g.strokeStyle = "rgba(255,255,255,.85)"; g.lineWidth = .022; g.beginPath(); g.moveTo(-.025, -.95); g.lineTo(-.025, -.45); g.stroke();
+      g.restore();
+      g.fillStyle = "rgba(255,255,255,.95)"; for (const d of [[-.1, -.2, .04], [.12, .05, .035], [-.04, .22, .03], [.08, -.38, .04]]) { sparklePath(g, ax + d[0], ay + d[1], d[2]); g.fill(); }
+    });
+    parts.cLine = mk((c, g) => { g.strokeStyle = INK; ring(g, F0, F1, .098); g.globalCompositeOperation = "destination-out"; ring(g, F0, F1, .05); g.globalCompositeOperation = "source-over"; g.save(); g.translate(0, 0); orbs(g, false); g.restore(); });
+  } finally { FSMODE = 0; }
+  return magicCache[l] = parts;
+}
+/* Wandernder Regenbogen, einmal pro Bild für alle Waffen gleich (in Sprite-Pixeln) */
+function magicGrad(key, tm) {
+  if (gradFrameKey === key && gradCv) return gradCv;
+  gradFrameKey = key; if (!gradCv) gradCv = mkCanvas(WP_W, WP_W);
+  const g = gradCv.getContext("2d"), Lp = 170, dx = .5, dy = .87, sh = ((tm * .55) % 1) * Lp, cx = WP_OX, cy = WP_OY - WP_U * .5;
+  const x0 = cx - dx * Lp * 1.5 + dx * sh, y0 = cy - dy * Lp * 1.5 + dy * sh, gr = g.createLinearGradient(x0, y0, x0 + dx * Lp * 3, y0 + dy * Lp * 3);
+  const N = 8; for (let k = 0; k <= N * 3; k++) gr.addColorStop(k / (N * 3), hsl(((k % N) / N) * 360 + 300, .95, .66));
+  g.clearRect(0, 0, WP_W, WP_W); g.fillStyle = gr; g.fillRect(0, 0, WP_W, WP_W); return gradCv;
+}
+function weaponFrame(l, tm) {
+  if (wTier(l) < 5) return weaponSprite(l);
+  const key = Math.floor(tm * 20);
+  let o = magicOut[l]; if (!o) o = magicOut[l] = { cv: mkCanvas(WP_W, WP_W), key: -1 };
+  if (o.key === key) return o.cv; o.key = key;
+  const P = magicParts(l), G = magicGrad(key, tm + l * .31), ax = HEAD[wType(l)][0], ay = HEAD[wType(l)][1], g = o.cv.getContext("2d");
+  if (!magicTmp) magicTmp = mkCanvas(WP_W, WP_W); const t = magicTmp.getContext("2d");
+  const color = fill => { t.globalCompositeOperation = "source-over"; t.clearRect(0, 0, WP_W, WP_W); t.drawImage(G, 0, 0); t.globalCompositeOperation = "multiply"; t.drawImage(fill, 0, 0); t.globalCompositeOperation = "destination-in"; t.drawImage(fill, 0, 0); t.globalCompositeOperation = "source-over"; g.drawImage(magicTmp, 0, 0); };
+  g.clearRect(0, 0, WP_W, WP_W);
+  g.save(); g.setTransform(WP_U, 0, 0, WP_U, WP_OX, WP_OY);
+  const h = (tm * 90 + l * 20) % 360, gl = g.createRadialGradient(ax, ay, .02, ax, ay, .64); gl.addColorStop(0, hsl(h, 1, .7).replace("#", "#") + "99"); gl.addColorStop(1, hsl(h, 1, .7) + "00"); g.fillStyle = gl; g.fillRect(-.9, -1.4, 1.8, 1.7);
+  g.restore();
+  color(P.aFill); g.drawImage(P.aLine, 0, 0); color(P.cFill); g.drawImage(P.cLine, 0, 0);
+  return o.cv;
+}
+
 /* ---------- Monster ---------- */
 const MON_W = 320, MON_U = 230, MON_OX = 160, MON_OY = 292;
 const MONS = [

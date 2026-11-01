@@ -224,12 +224,16 @@ function swingAng(r) {   // Ausholen, Zuschlagen, Zurück
 }
 /* Bewegte Effekte der Kristall-, Feuer- und Magiewaffen: pulsierendes Leuchten, Funkeln, aufsteigende Glut, kreisende Sterne */
 function weaponFx(c, l, t, u) {
-  const a = HEAD[wType(l)], ax = a[0] * u, ay = a[1] * u, tm = time, pr = .5 + .5 * Math.sin(tm * 4 + l), col = t === 3 ? "120,230,255" : t === 4 ? "255,150,50" : "210,130,255";
-  c.save(); c.globalCompositeOperation = "lighter"; const rg = c.createRadialGradient(ax, ay, 0, ax, ay, u * .5); rg.addColorStop(0, "rgba(" + col + "," + (.14 + .14 * pr) + ")"); rg.addColorStop(1, "rgba(" + col + ",0)"); c.fillStyle = rg; c.fillRect(ax - u * .5, ay - u * .5, u, u); c.restore();
+  const a = HEAD[wType(l)], ax = a[0] * u, ay = a[1] * u, tm = time, pr = .5 + .5 * Math.sin(tm * 4 + l), col = t === 3 ? "120,230,255" : t === 4 ? "255,150,50" : "210,130,255", hc = t === 5 ? hsl(tm * 90 + l * 20, 1, .6) : null;
+  c.save(); c.globalCompositeOperation = "lighter"; const rg = c.createRadialGradient(ax, ay, 0, ax, ay, u * .5); if (hc) { rg.addColorStop(0, hexA(hc, .22 + .2 * pr)); rg.addColorStop(1, hexA(hc, 0)); } else { rg.addColorStop(0, "rgba(" + col + "," + (.14 + .14 * pr) + ")"); rg.addColorStop(1, "rgba(" + col + ",0)"); } c.fillStyle = rg; c.fillRect(ax - u * .5, ay - u * .5, u, u); c.restore();
   c.save();
   if (t === 3) { for (let i = 0; i < 5; i++) { const ph = (tm * 1.1 + i * .2 + l * .13) % 1; c.globalAlpha = Math.sin(ph * Math.PI); c.fillStyle = "#fff"; sparklePath(c, ax + Math.cos(i * 2.1 + l) * u * .32, ay + Math.sin(i * 1.7 + l) * u * .32, u * .06 * (.4 + ph)); c.fill(); } }
   else if (t === 4) { for (let i = 0; i < 8; i++) { const ph = (tm * .85 + i / 8) % 1; c.globalAlpha = 1 - ph; c.fillStyle = i % 2 ? "#ffd34a" : "#ff7a2a"; c.beginPath(); c.arc(ax + Math.sin(i * 2.7 + ph * 5) * u * .15, ay + u * .05 - ph * u * .62, u * .024 * (1 - ph * .5), 0, 7); c.fill(); } }
-  else { for (let i = 0; i < 3; i++) { const ang = tm * 2.2 + i * 2.094; c.globalAlpha = .7 + .3 * Math.sin(tm * 5 + i); c.fillStyle = i % 2 ? "#ffd6ff" : "#bff4ff"; starPath(c, ax + Math.cos(ang) * u * .42, ay + Math.sin(ang) * u * .13, u * .05, u * .022, ang); c.fill(); } }
+  else {
+    c.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 5; i++) { const ang = tm * (i % 2 ? -2.6 : 2.2) + i * 1.257, rr = u * (.3 + .1 * (i % 3)); c.globalAlpha = .75 + .25 * Math.sin(tm * 5 + i); c.fillStyle = hsl(tm * 120 + i * 72, 1, .72); starPath(c, ax + Math.cos(ang) * rr, ay + Math.sin(ang) * rr * .32, u * .05, u * .02, ang); c.fill(); }
+    for (let i = 0; i < 9; i++) { const ph = (tm * 1.1 + i / 9) % 1, a = i * 2.4 + l; c.globalAlpha = Math.sin(ph * Math.PI) * .9; c.fillStyle = hsl(tm * 120 + i * 40, 1, .78); sparklePath(c, ax + Math.cos(a) * u * (.12 + ph * .38), ay + Math.sin(a) * u * (.1 + ph * .3) - ph * u * .12, u * .05 * (1 - ph * .4)); c.fill(); }
+  }
   c.restore();
 }
 function drawSlime(l, cx, by, size, o) {
@@ -239,7 +243,7 @@ function drawSlime(l, cx, by, size, o) {
   const dx = -SL_OX * k, dy = -SL_OY * k, dw = SL_W * k;
   ctx.drawImage(slimeSprite(l), dx, dy, dw, dw);
   const blink = ((time * .6 + l * .37) % 4) < .12; ctx.drawImage(faceSprite(l, o.attack ? 2 : blink ? 1 : 0), dx, dy, dw, dw);
-  const wk = size * 1.05 / WP_U; ctx.save(); ctx.translate(size * .42, -size * .2); ctx.rotate(o.ang != null ? o.ang : .25 + Math.sin(time * 2 + l) * .04); ctx.drawImage(weaponSprite(l), -WP_OX * wk, -WP_OY * wk, WP_W * wk, WP_W * wk); if (wTier(l) >= 3) weaponFx(ctx, l, wTier(l), WP_U * wk); ctx.restore();
+  const wk = size * 1.05 / WP_U; ctx.save(); ctx.translate(size * .42, -size * .2); ctx.rotate(o.ang != null ? o.ang : .25 + Math.sin(time * 2 + l) * .04); ctx.drawImage(weaponFrame(l, time), -WP_OX * wk, -WP_OY * wk, WP_W * wk, WP_W * wk); if (wTier(l) >= 3) weaponFx(ctx, l, wTier(l), WP_U * wk); ctx.restore();
   ctx.restore();
 }
 function drawLocked(l, cx, by, size) { const k = size / SL_U; ctx.globalAlpha = .55; ctx.drawImage(slimeSil(l), cx - SL_OX * k, by - SL_OY * k, SL_W * k, SL_W * k); ctx.globalAlpha = 1; }

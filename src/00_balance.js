@@ -1,6 +1,6 @@
 "use strict";
 /* Reine Rechenfunktionen (ohne Browser), damit man sie in Node simulieren kann */
-const MAXLVL = 60;
+const MAXLVL = 72;
 const BEAT = 0.85;                                   // Sekunden zwischen zwei Schlägen
 const dpsOf = l => 4 * Math.pow(2.15, l - 1);         // Schaden pro Sekunde eines Schleims
 const isBoss = st => st % 10 === 0;

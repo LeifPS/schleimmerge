@@ -41,7 +41,8 @@ function sketch(c, seed, seg, amp) {
   return new Proxy(c, { get(t, p) { if (p in O) return O[p]; const v = t[p]; return typeof v === "function" ? v.bind(t) : v; }, set(t, p, v) { t[p] = v; return true; } });
 }
 /* Füllen und mit Tinte umranden */
-function FS(c, fill) { if (fill) { c.fillStyle = fill; c.fill(); } c.strokeStyle = INK; c.stroke(); }
+let FSMODE = 0;   // 0 = normal, 1 = nur Füllung, 2 = nur Kontur (für die animierten Magiewaffen)
+function FS(c, fill) { if (fill && FSMODE !== 2) { c.fillStyle = fill; c.fill(); } if (FSMODE !== 1) { c.strokeStyle = INK; c.stroke(); } }
 /* Sprite zeichnen: Leinwand w*h, Ursprung (ox,oy), Einheit u. fn bekommt einen wackelnden Kontext in Einheiten */
 function makeSprite(w, h, ox, oy, u, seed, fn, amp) {
   const cv = mkCanvas(w, h), g = cv.getContext("2d");

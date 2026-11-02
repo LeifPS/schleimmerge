@@ -261,7 +261,7 @@ function drawSlime(l, cx, by, size, o) {
   const dx = -SL_OX * k, dy = -SL_OY * k, dw = SL_W * k;
   ctx.drawImage(slimeSprite(l), dx, dy, dw, dw);
   const blink = ((time * .6 + l * .37) % 4) < .12; ctx.drawImage(faceSprite(l, o.attack ? 2 : blink ? 1 : 0), dx, dy, dw, dw);
-  const wk = size * 1.05 / WP_U; ctx.save(); ctx.translate(size * .42, -size * .2); ctx.rotate(o.ang != null ? o.ang : .25 + Math.sin(time * 2 + l) * .04); ctx.drawImage(weaponFrame(l, time), -WP_OX * wk, -WP_OY * wk, WP_W * wk, WP_W * wk); if (wTier(l) >= 3) weaponFx(ctx, l, wTier(l), WP_U * wk); ctx.restore();
+  const wk = size * 1.05 / WP_U; ctx.save(); ctx.translate(size * .42, -size * .2); ctx.rotate(o.ang != null ? o.ang : .25 + Math.sin(time * 2 + l) * .04); const wm = weaponMeta(l); ctx.drawImage(weaponFrame(l, time), -wm.ox * wk, -wm.oy * wk, wm.w * wk, wm.w * wk); if (wTier(l) >= 3 && wTier(l) < 7) weaponFx(ctx, l, wTier(l), WP_U * wk); ctx.restore();
   ctx.restore();
 }
 function drawLocked(l, cx, by, size) { const k = size / SL_U; ctx.globalAlpha = .55; ctx.drawImage(slimeSil(l), cx - SL_OX * k, by - SL_OY * k, SL_W * k, SL_W * k); ctx.globalAlpha = 1; }

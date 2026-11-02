@@ -683,7 +683,7 @@ function offlineProgress(sec) {
       const need = ln.hp / dps;
       if (need > t) { ln.hp -= dps * t; t = 0; }
       else {
-        t -= need + 1; const r = rewardOf(ln.stage); gain += r; kills++; ln.chest++; if (ln.chest >= CHEST_EVERY) { ln.chest = 0; gain += r * 3; }
+        t -= need + 1; const r = rewardOf(ln.stage); gain += r; kills++; if (ln.stage === S.unlocked) { ln.chest++; if (ln.chest >= CHEST_EVERY) { ln.chest = 0; gain += r * 3; } }   /* Kisten gibt es nur auf der höchsten Stufe */
         if (ln.stage === S.unlocked) { S.unlocked++; if (S.sel === ln.stage) S.sel = S.unlocked; }
         ln.stage = S.sel; ln.hp = hpOf(ln.stage);
       }
@@ -812,8 +812,8 @@ function kill(i) {
   const ln = S.lanes[i], r = R[i], Ls = L.lanes[i], rew = rewardOf(ln.stage); S.coins += rew; S.kills++; r.dying = 1;
   coinBurst(Ls.monX, Ls.floorY - Ls.monH * .5, Math.min(10, 4 + Math.floor(Math.log10(rew + 1))), Ls.monH * .2);
   puffs(Ls.monX, Ls.floorY - Ls.monH * .3, 6, Ls.monH); say("+" + fmt(rew), Ls.monX, Ls.floorY - Ls.monH * 1.05, "#ffd23f", 28);
-  sfx.kill(); ln.chest++; r.chestBump = 1;
-  if (ln.chest >= CHEST_EVERY) { ln.chest = 0; openChest(i, rew); }
+  sfx.kill();
+  if (ln.stage === S.unlocked) { ln.chest++; r.chestBump = 1; if (ln.chest >= CHEST_EVERY) { ln.chest = 0; openChest(i, rew); } }   // Kisten gibt es nur auf der höchsten Stufe
   if (ln.stage === S.unlocked) { S.unlocked++; if (S.sel === ln.stage) S.sel = S.unlocked; say("Stufe " + S.unlocked + " frei", Ls.monX, Ls.floorY - Ls.monH * 1.38, "#bff7ff", 22); }
 }
 function openChest(i, rew) {
@@ -958,8 +958,9 @@ function drawLanes() {
     }
     /* Kiste */
     const open = r.chestAnim > 0, cK = Ls.chestS / .88 / 160, bump = r.chestBump > 0 ? 1 + Math.sin(r.chestBump * Math.PI) * .12 : 1, ready = ln.chest === CHEST_EVERY - 1;
-    ctx.save(); ctx.translate(Ls.chestX, Ls.floorY + 3); ctx.scale(bump, bump * (ready ? 1 + Math.sin(time * 8) * .03 : 1)); ctx.drawImage(chestSprite(open), -110 * cK, -170 * cK, 220 * cK, 200 * cK); ctx.restore();
-    const dr = Math.max(4, Ls.chestS * .05); for (let d = 0; d < CHEST_EVERY; d++) { ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.fillStyle = d < ln.chest ? "#ffd23f" : "#3a3f78"; ctx.beginPath(); ctx.arc(Ls.chestX + (d - (CHEST_EVERY - 1) / 2) * dr * 2.5, Ls.floorY - Ls.chestS * .92 - dr * 1.6, dr, 0, 7); ctx.fill(); ctx.stroke(); }
+    const off = S.sel < S.unlocked;
+    ctx.save(); if (off) ctx.globalAlpha = .3; ctx.translate(Ls.chestX, Ls.floorY + 3); ctx.scale(bump, bump * (ready ? 1 + Math.sin(time * 8) * .03 : 1)); ctx.drawImage(chestSprite(open), -110 * cK, -170 * cK, 220 * cK, 200 * cK); ctx.restore();
+    const dr = Math.max(4, Ls.chestS * .05); if (!off) for (let d = 0; d < CHEST_EVERY; d++) { ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.fillStyle = d < ln.chest ? "#ffd23f" : "#3a3f78"; ctx.beginPath(); ctx.arc(Ls.chestX + (d - (CHEST_EVERY - 1) / 2) * dr * 2.5, Ls.floorY - Ls.chestS * .92 - dr * 1.6, dr, 0, 7); ctx.fill(); ctx.stroke(); }
     if (ready) { ctx.save(); ctx.fillStyle = "rgba(255,246,170,.95)"; const q = (time * 2 + i) % 1; sparklePath(ctx, Ls.chestX + Ls.chestS * .4, Ls.floorY - Ls.chestS * (.5 + q * .4), 6 + 5 * Math.sin(q * Math.PI)); ctx.fill(); ctx.restore(); }
   }
 }

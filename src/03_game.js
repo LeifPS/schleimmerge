@@ -5,13 +5,18 @@ let VW = 0, VH = 0, DPR = 1, L = null, time = 0;
 const SAVEKEY = "schleimmerge.v1";
 const newLane = () => ({ lvl: 0, stage: 1, hp: hpOf(1), chest: 0 });
 const ownedUnits = sl => { let u = 0; for (const v of S.grid) if (v > 0) u += Math.pow(2, v - sl); for (const l of S.lanes) if (l.lvl > 0) u += Math.pow(2, l.lvl - sl); return u; };
-const fresh = () => ({ v: 1, coins: 30, grid: [1, 1, 0, 0, 0, 0, 0, 0, 0], lanes: [newLane(), newLane(), newLane()], buys: {}, best: 1, kills: 0, merges: 0, saved: Date.now() });
+const fresh = () => ({ v: 1, coins: 30, grid: [1, 1, 0, 0, 0, 0, 0, 0, 0], lanes: [newLane(), newLane(), newLane()], buys: {}, best: 1, kills: 0, merges: 0, unlocked: 1, sel: 1, saved: Date.now() });
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(SAVEKEY));
     if (s && s.v === 1 && Array.isArray(s.grid) && s.grid.length === 9 && Array.isArray(s.lanes) && s.lanes.length === 3) {
       s.grid = s.grid.map(v => clamp(v | 0, 0, MAXLVL));
       s.lanes.forEach(l => { l.lvl = clamp(l.lvl | 0, 0, MAXLVL); l.stage = Math.max(1, l.stage | 0); if (!(l.hp > 0)) l.hp = hpOf(l.stage); l.chest = l.chest | 0; });
+      /* Stufenwahl: alte Spielstände kannten pro Bahn eine eigene Stufe. Freigeschaltet ist nun die höchste, die eine Bahn erreicht hatte;
+         ausgewählt wird diese Stufe, und alle Bahnen kämpfen dort (Bahnen weiter hinten bekommen ein frisches Monster). */
+      const mx = Math.max(1, ...s.lanes.map(l => l.stage));
+      s.unlocked = Math.max(1, s.unlocked | 0, mx); s.sel = clamp(s.sel | 0 || s.unlocked, 1, s.unlocked);
+      s.lanes.forEach(l => { if (l.stage !== s.sel) { l.stage = s.sel; l.hp = hpOf(s.sel); } });
       s.buys = s.buys || {}; s.merges = s.merges | 0; s.kills = s.kills | 0; if (!(s.coins >= 0)) s.coins = 0;
       s.best = Math.max(1, s.best | 0, ...s.grid, ...s.lanes.map(l => l.lvl)); return s;
     }
@@ -37,6 +42,7 @@ function tone(f, dur, type, vol, slide, delay) {
 }
 const sfx = {
   merge(l) { const f = 330 * Math.pow(1.0595, Math.min(24, l * 1.5)); tone(f, .12, "triangle", .09); tone(f * 1.5, .18, "triangle", .08, 1, .08); },
+  pick() { tone(440, .05, "sine", .05, 1.2); },
   buy() { tone(520, .07, "sine", .07, 1.3); tone(780, .1, "sine", .06, 1, .06); },
   move() { tone(300, .05, "sine", .05, 1.3); },
   hit() { const n = performance.now(); if (n - lastHitSfx < 90) return; lastHitSfx = n; tone(200 + Math.random() * 60, .07, "triangle", .035, .6); },
@@ -48,14 +54,20 @@ const sfx = {
 /* Verdienst, während das Spiel zu war (halbe Kraft, damit Dranbleiben sich lohnt) */
 function offlineProgress(sec) {
   let gain = 0, kills = 0;
-  for (let i = 0; i < 3; i++) {
-    const ln = S.lanes[i]; if (!ln.lvl) continue; const dps = dpsOf(ln.lvl) * .5; let t = sec, hp = ln.hp, guard = 0;
-    while (t > 0 && guard++ < 100000) {
-      const need = hp / dps;
-      if (need > t) { hp -= dps * t; t = 0; }
-      else { t -= need + 1; const r = rewardOf(ln.stage); gain += r; kills++; ln.chest++; if (ln.chest >= CHEST_EVERY) { ln.chest = 0; gain += r * 3; } ln.stage++; hp = hpOf(ln.stage); }
+  /* In Scheiben gerechnet, damit alle Bahnen gleichzeitig kämpfen und eine neu freigeschaltete Stufe sofort für alle gilt */
+  const N = 60, dtS = sec / N;
+  for (let k = 0; k < N; k++) for (let i = 0; i < 3; i++) {
+    const ln = S.lanes[i]; if (!ln.lvl) continue; const dps = dpsOf(ln.lvl) * .5; let t = dtS, guard = 0;
+    while (t > 0 && guard++ < 5000) {
+      const need = ln.hp / dps;
+      if (need > t) { ln.hp -= dps * t; t = 0; }
+      else {
+        t -= need + 1; const r = rewardOf(ln.stage); gain += r; kills++; ln.chest++; if (ln.chest >= CHEST_EVERY) { ln.chest = 0; gain += r * 3; }
+        if (ln.stage === S.unlocked) { S.unlocked++; if (S.sel === ln.stage) S.sel = S.unlocked; }
+        ln.stage = S.sel; ln.hp = hpOf(ln.stage);
+      }
     }
-    ln.hp = Math.max(1, hp);
+    if (!(ln.hp >= 1)) ln.hp = 1;
   }
   S.coins += gain; S.kills += kills; return { gain, kills };
 }
@@ -76,7 +88,7 @@ function layout() {
     const listW = clamp(W * .085, 62, 120); L.list = { x: 0, y: 0, w: listW, h: H };
     const rx = listW, rw = W - listW, mw = rw * .44, lx = rx + mw, lw = rw - mw;
     const topH = H * .19; cs = Math.max(40, Math.min(mw * .3, (H - topH - H * .22) / 3.35)); gap = cs * .09; gw = 3 * cs + 2 * gap; gx = rx + (mw - gw) / 2; gy = topH;
-    L.counter = { x: rx + mw / 2, y: H * .095, size: Math.min(H * .09, mw * .13) }; L.mute = { x: rx + 12, y: 12, w: 44, h: 44 };
+    L.counter = { x: rx + mw / 2, y: H * .095, size: Math.min(H * .09, mw * .13) }; L.mute = { x: rx + 12, y: 12, w: 44, h: 44 }; { const sw = clamp(mw * .3, 120, 180); L.stage = { x: rx + mw - sw - 10, y: 12, w: sw, h: 44 }; }
     const bh = cs * .62, tw = gw * .94, gp = bh * .16, bx0 = rx + (mw - tw) / 2, by0 = gy + gw + cs * .26; L.buy = { x: bx0, y: by0, w: tw - bh - gp, h: bh }; L.bin = { x: bx0 + tw - bh, y: by0, w: bh, h: bh };
     L.laneArea = { x: lx, y: 0, w: lw, h: H };
     const m = H * .02, rh = (H - m * 2) / 3;
@@ -86,7 +98,7 @@ function layout() {
     }
   } else {
     const topbar = H * .085, laneB = H * .54, rh = (laneB - topbar) / 3;
-    L.counter = { x: W / 2, y: topbar / 2, size: Math.min(topbar * .8, W * .12) }; L.mute = { x: 8, y: Math.max(4, topbar / 2 - 20), w: 40, h: 40 }; L.laneArea = { x: 0, y: 0, w: W, h: laneB };
+    L.counter = { x: W / 2, y: topbar / 2, size: Math.min(topbar * .8, W * .12) }; L.mute = { x: 8, y: Math.max(4, topbar / 2 - 20), w: 40, h: 40 }; { const sw = clamp(W * .27, 100, 150); L.stage = { x: W - sw - 8, y: Math.max(4, topbar / 2 - 20), w: sw, h: 40 }; } L.laneArea = { x: 0, y: 0, w: W, h: laneB };
     for (let i = 0; i < 3; i++) {
       const y0 = topbar + i * rh, ss = Math.min(rh * .8, W * .24);
       L.lanes.push({ y0, rh, slot: { x: W * .03, y: y0 + (rh - ss) / 2 + rh * .03, w: ss, h: ss }, floorY: y0 + rh * .9, monX: W * .57, monH: Math.min(rh * .7, W * .36), chestX: W * .895, chestS: Math.min(rh * .5, W * .17), x0: W * .01, x1: W * .99 });
@@ -181,16 +193,25 @@ function kill(i) {
   puffs(Ls.monX, Ls.floorY - Ls.monH * .3, 6, Ls.monH); say("+" + fmt(rew), Ls.monX, Ls.floorY - Ls.monH * 1.05, "#ffd23f", 28);
   sfx.kill(); ln.chest++; r.chestBump = 1;
   if (ln.chest >= CHEST_EVERY) { ln.chest = 0; openChest(i, rew); }
+  if (ln.stage === S.unlocked) { S.unlocked++; if (S.sel === ln.stage) S.sel = S.unlocked; say("Stufe " + S.unlocked + " frei", Ls.monX, Ls.floorY - Ls.monH * 1.38, "#bff7ff", 22); }
 }
 function openChest(i, rew) {
   const r = R[i], Ls = L.lanes[i], bonus = rew * 3; S.coins += bonus; r.chestAnim = 1; sfx.chest();
   coinBurst(Ls.chestX, Ls.floorY - Ls.chestS * .5, 8, Ls.monH * .18); sparks(Ls.chestX, Ls.floorY - Ls.chestS * .6, 12, "#fff0a0", 200); say("+" + fmt(bonus), Ls.chestX, Ls.floorY - Ls.chestS * 1.2, "#ffd23f", 26);
   const fc = freeCell(); if (fc >= 0 && Math.random() < .5) { const lv = Math.min(MAXLVL, spawnLvl(S.best) + 1); S.grid[fc] = lv; if (lv > S.best) S.best = lv; gridPop[fc] = 1; const c = L.cells[fc]; sparks(c.x + c.w / 2, c.y + c.h / 2, 10, "#fff6a8", 160); say("Schleim aus der Kiste", L.grid.x + L.grid.w / 2, L.grid.y - 10, "#bff7ff", 22); }
 }
-function nextMonster(i) { const ln = S.lanes[i], r = R[i]; ln.stage++; ln.hp = hpOf(ln.stage); r.spawn = 0; r.atk = 0; }
+/* Auswahl der Kampfstufe: nur bis zur höchsten freigeschalteten; alle Bahnen bekommen sofort ein frisches Monster dieser Stufe */
+let stageHold = null;
+function setSel(n) {
+  n = clamp(n | 0, 1, S.unlocked); if (n === S.sel) return false; S.sel = n;
+  for (let i = 0; i < 3; i++) { const ln = S.lanes[i], r = R[i]; ln.stage = n; ln.hp = hpOf(n); r.spawn = 0; r.atk = 0; r.dying = 0; }
+  sfx.pick && sfx.pick(); save(); return true;
+}
+function nextMonster(i) { const ln = S.lanes[i], r = R[i]; ln.stage = S.sel; ln.hp = hpOf(ln.stage); r.spawn = 0; r.atk = 0; }
 
 function update(dt) {
   time += dt;
+  if (stageHold) { stageHold.t += dt; if (stageHold.t > .35) { stageHold.acc += dt; while (stageHold.acc > .1) { stageHold.acc -= .1; setSel(S.sel + stageHold.dir * (stageHold.t > 1.4 ? 5 : 1)); } } }
   for (let i = 0; i < 3; i++) {
     const ln = S.lanes[i], r = R[i];
     r.swing = Math.max(0, r.swing - dt * 3.4); r.hit = Math.max(0, r.hit - dt * 5); r.spawn = Math.min(1, r.spawn + dt * 2.2); r.chestAnim = Math.max(0, r.chestAnim - dt * 1.1); r.chestBump = Math.max(0, r.chestBump - dt * 3);
@@ -367,10 +388,16 @@ function drawMute() {
   else { ctx.beginPath(); ctx.arc(cx + r * .06, cy, r * .3, -.9, .9); ctx.stroke(); ctx.beginPath(); ctx.arc(cx + r * .06, cy, r * .52, -.9, .9); ctx.stroke(); }
   ctx.restore();
 }
+function drawStageSel() {
+  const b = L.stage; if (!b) return; const hi = S.sel >= S.unlocked, can = d => d < 0 ? S.sel > 1 : S.sel < S.unlocked;
+  ctx.save(); ctx.lineJoin = ctx.lineCap = "round"; ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.fillStyle = "#262f66"; rr(ctx, b.x, b.y, b.w, b.h, b.h * .32); ctx.fill(); ctx.stroke();
+  for (const d of [-1, 1]) { const cx = d < 0 ? b.x + b.w * .13 : b.x + b.w * .87, cy = b.y + b.h / 2, s = b.h * .22; ctx.globalAlpha = can(d) ? 1 : .3; ctx.fillStyle = "#bff7ff"; ctx.beginPath(); ctx.moveTo(cx - d * s * .7, cy - s); ctx.lineTo(cx + d * s * .7, cy); ctx.lineTo(cx - d * s * .7, cy + s); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  ctx.restore(); txt("Stufe " + S.sel, b.x + b.w / 2, b.y + b.h * .5, b.h * (L.land ? .5 : .42), hi ? "#ffd23f" : "#ffffff", "center", "#141a3c");
+}
 function render() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.lineJoin = ctx.lineCap = "round"; ctx.clearRect(0, 0, VW, VH);
   ctx.drawImage(bgC, 0, 0, VW, VH);
-  drawList(); drawCounter(); drawMute(); drawGrid(); drawLanes(); drawBuy(); drawBin(); drawParts(); drawBanner();
+  drawList(); drawCounter(); drawMute(); drawStageSel(); drawGrid(); drawLanes(); drawBuy(); drawBin(); drawParts(); drawBanner();
   if (drag) { const sz = L.grid.cs * .8, rc = drag; ctx.save(); ctx.fillStyle = "rgba(10,10,40,.3)"; ctx.beginPath(); ctx.ellipse(rc.x, rc.y + sz * .42, sz * .42, sz * .08, 0, 0, 7); ctx.fill(); ctx.restore(); drawSlime(drag.lvl, rc.x, rc.y + sz * .35, sz, { ph: 3, ang: .45 }); }
 }
 
@@ -386,6 +413,7 @@ let down = null;
 cv.addEventListener("pointerdown", e => {
   e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (x) { } audio(); const p = pt(e); down = { x: p.x, y: p.y, t: performance.now(), moved: 0, mode: null, scroll: listScroll };
   if (L.mute && inR(p, L.mute)) { down.mode = "mute"; return; }
+  if (L.stage && inR(p, L.stage)) { const b = L.stage, fx = (p.x - b.x) / b.w; down.mode = "stage"; if (fx < .3) { setSel(S.sel - 1); stageHold = { dir: -1, t: 0, acc: 0 }; } else if (fx > .7) { setSel(S.sel + 1); stageHold = { dir: 1, t: 0, acc: 0 }; } else setSel(S.unlocked); return; }
   if (inR(p, L.buy)) { down.mode = "buy"; buyPress = 1; return; }
   if (L.list && p.x < L.list.w) { down.mode = "list"; return; }
   const ref = hitSlot(p); if (ref && getL(ref)) { down.mode = "slime"; down.ref = ref; drag = { ref, lvl: getL(ref), x: p.x, y: p.y - L.grid.cs * .25, px: p.x, py: p.y }; }
@@ -399,6 +427,7 @@ cv.addEventListener("pointermove", e => {
 function release(e, cancel) {
   if (!down) return; const p = pt(e), d = down; down = null;
   if (d.mode === "mute") { if (!cancel && inR(p, L.mute)) { S.mute = !S.mute; save(); } return; }
+  if (d.mode === "stage") { stageHold = null; return; }
   if (d.mode === "buy") { buyPress = 0; if (!cancel && inR(p, L.buy)) buy(); return; }
   if (d.mode === "slime" && drag) {
     const tap = d.moved < 10 && performance.now() - d.t < 450; drag = null; if (cancel) return;

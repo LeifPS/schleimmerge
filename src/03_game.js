@@ -471,5 +471,5 @@ function start() { const away = (Date.now() - (S.saved || Date.now())) / 1000; i
 Promise.race([Promise.all([document.fonts.load("28px \"Caveat Brush\""), document.fonts.load("18px \"Patrick Hand\"")]), new Promise(r => setTimeout(r, 1500))]).then(start, start);
 window.G = { S, R, buy, apply, tapSlime, update, render, get L() { return L; } };
 
-window.LGH_EIGENER_KNOPF = true;
+window.LGH_SPIEL = "schleimmerge"; window.LGH_EIGENER_KNOPF = true;
 window.LGH_ZEILEN = function () { return [{ text: "Ton", an: !S.mute, setze: function (v) { S.mute = !v; save(); } }]; };

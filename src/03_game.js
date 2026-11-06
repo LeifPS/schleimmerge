@@ -88,7 +88,7 @@ function layout() {
     const listW = clamp(W * .085, 62, 120); L.list = { x: 0, y: 0, w: listW, h: H };
     const rx = listW, rw = W - listW, mw = rw * .44, lx = rx + mw, lw = rw - mw;
     const topH = H * .19; cs = Math.max(40, Math.min(mw * .3, (H - topH - H * .22) / 3.35)); gap = cs * .09; gw = 3 * cs + 2 * gap; gx = rx + (mw - gw) / 2; gy = topH;
-    L.counter = { x: rx + mw / 2, y: H * .095, size: Math.min(H * .09, mw * .13) }; L.mute = { x: rx + 12, y: 12, w: 44, h: 44 }; { const sw = clamp(mw * .3, 120, 180); L.stage = { x: rx + mw - sw - 10, y: 12, w: sw, h: 44 }; }
+    L.counter = { x: rx + mw / 2, y: H * .095, size: Math.min(H * .09, mw * .13) }; L.mute = { x: rx + 12, y: 12, w: 44, h: 44 }; L.opt = { x: rx + 12 + 44 + 8, y: 12, w: 44, h: 44 }; { const sw = clamp(mw * .3, 120, 180); L.stage = { x: rx + mw - sw - 10, y: 12, w: sw, h: 44 }; }
     const bh = cs * .62, tw = gw * .94, gp = bh * .16, bx0 = rx + (mw - tw) / 2, by0 = gy + gw + cs * .26; L.buy = { x: bx0, y: by0, w: tw - bh - gp, h: bh }; L.bin = { x: bx0 + tw - bh, y: by0, w: bh, h: bh };
     L.laneArea = { x: lx, y: 0, w: lw, h: H };
     const m = H * .02, rh = (H - m * 2) / 3;
@@ -98,7 +98,7 @@ function layout() {
     }
   } else {
     const topbar = H * .085, laneB = H * .54, rh = (laneB - topbar) / 3;
-    L.counter = { x: W / 2, y: topbar / 2, size: Math.min(topbar * .8, W * .12) }; L.mute = { x: 8, y: Math.max(4, topbar / 2 - 20), w: 40, h: 40 }; { const sw = clamp(W * .27, 100, 150); L.stage = { x: W - sw - 8, y: Math.max(4, topbar / 2 - 20), w: sw, h: 40 }; } L.laneArea = { x: 0, y: 0, w: W, h: laneB };
+    L.counter = { x: W / 2, y: topbar / 2, size: Math.min(topbar * .8, W * .12) }; L.mute = { x: 8, y: Math.max(4, topbar / 2 - 20), w: 40, h: 40 }; L.opt = { x: 8 + 40 + 6, y: L.mute.y, w: 40, h: 40 }; { const sw = clamp(W * .27, 100, 150); L.stage = { x: W - sw - 8, y: Math.max(4, topbar / 2 - 20), w: sw, h: 40 }; } L.laneArea = { x: 0, y: 0, w: W, h: laneB };
     for (let i = 0; i < 3; i++) {
       const y0 = topbar + i * rh, ss = Math.min(rh * .8, W * .24);
       L.lanes.push({ y0, rh, slot: { x: W * .03, y: y0 + (rh - ss) / 2 + rh * .03, w: ss, h: ss }, floorY: y0 + rh * .9, monX: W * .57, monH: Math.min(rh * .7, W * .36), chestX: W * .895, chestS: Math.min(rh * .5, W * .17), x0: W * .01, x1: W * .99 });
@@ -389,6 +389,11 @@ function drawMute() {
   else { ctx.beginPath(); ctx.arc(cx + r * .06, cy, r * .3, -.9, .9); ctx.stroke(); ctx.beginPath(); ctx.arc(cx + r * .06, cy, r * .52, -.9, .9); ctx.stroke(); }
   ctx.restore();
 }
+function drawOpt() {
+  const m = L.opt; if (!m) return; const cx = m.x + m.w / 2, cy = m.y + m.h / 2, r = m.w / 2; ctx.save(); ctx.lineJoin = ctx.lineCap = "round"; ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.fillStyle = "#f6efd9"; ctx.beginPath(); ctx.arc(cx, cy, r - 2, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = INK; ctx.beginPath(); const R1 = r * .56, R0 = r * .4; for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2, rad = (i % 2 ? R0 : R1); ctx.lineTo(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad); } ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#f6efd9"; ctx.beginPath(); ctx.arc(cx, cy, r * .2, 0, 7); ctx.fill(); ctx.restore();
+}
 function drawStageSel() {
   const b = L.stage; if (!b) return; const hi = S.sel >= S.unlocked, can = d => d < 0 ? S.sel > 1 : S.sel < S.unlocked;
   ctx.save(); ctx.lineJoin = ctx.lineCap = "round"; ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.fillStyle = "#262f66"; rr(ctx, b.x, b.y, b.w, b.h, b.h * .32); ctx.fill(); ctx.stroke();
@@ -398,7 +403,7 @@ function drawStageSel() {
 function render() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.lineJoin = ctx.lineCap = "round"; ctx.clearRect(0, 0, VW, VH);
   ctx.drawImage(bgC, 0, 0, VW, VH);
-  drawList(); drawCounter(); drawMute(); drawStageSel(); drawGrid(); drawLanes(); drawBuy(); drawBin(); drawParts(); drawBanner();
+  drawList(); drawCounter(); drawMute(); drawOpt(); drawStageSel(); drawGrid(); drawLanes(); drawBuy(); drawBin(); drawParts(); drawBanner();
   if (drag) { const sz = L.grid.cs * .8, rc = drag; ctx.save(); ctx.fillStyle = "rgba(10,10,40,.3)"; ctx.beginPath(); ctx.ellipse(rc.x, rc.y + sz * .42, sz * .42, sz * .08, 0, 0, 7); ctx.fill(); ctx.restore(); drawSlime(drag.lvl, rc.x, rc.y + sz * .35, sz, { ph: 3, ang: .45 }); }
 }
 
@@ -414,6 +419,7 @@ let down = null;
 cv.addEventListener("pointerdown", e => {
   e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (x) { } audio(); const p = pt(e); down = { x: p.x, y: p.y, t: performance.now(), moved: 0, mode: null, scroll: listScroll };
   if (L.mute && inR(p, L.mute)) { down.mode = "mute"; return; }
+  if (L.opt && inR(p, L.opt)) { down.mode = "opt"; return; }
   if (L.stage && inR(p, L.stage)) { const b = L.stage, fx = (p.x - b.x) / b.w; down.mode = "stage"; if (fx < .3) { setSel(S.sel - 1); stageHold = { dir: -1, t: 0, acc: 0 }; } else if (fx > .7) { setSel(S.sel + 1); stageHold = { dir: 1, t: 0, acc: 0 }; } else setSel(S.unlocked); return; }
   if (inR(p, L.buy)) { down.mode = "buy"; buyPress = 1; return; }
   if (L.list && p.x < L.list.w) { down.mode = "list"; return; }
@@ -427,6 +433,7 @@ cv.addEventListener("pointermove", e => {
 });
 function release(e, cancel) {
   if (!down) return; const p = pt(e), d = down; down = null;
+  if (d.mode === "opt") { if (!cancel && inR(p, L.opt) && window.LGH) window.LGH.oeffnen(); return; }
   if (d.mode === "mute") { if (!cancel && inR(p, L.mute)) { S.mute = !S.mute; save(); } return; }
   if (d.mode === "stage") { stageHold = null; return; }
   if (d.mode === "buy") { buyPress = 0; if (!cancel && inR(p, L.buy)) buy(); return; }
@@ -463,3 +470,6 @@ function frame(now) { const dt = Math.min(.1, (now - last) / 1000); last = now; 
 function start() { const away = (Date.now() - (S.saved || Date.now())) / 1000; if (away > 45 && S.lanes.some(l => l.lvl)) { const o = offlineProgress(Math.min(away, 7200)); if (o.gain > 0) banner = { title: "Willkommen zurück", sub: "+" + fmt(o.gain) + " Münzen (" + o.kills + " Siege)", t: 0 }; } resize(); listScroll = L.list ? clamp(L.list.head + (S.best - 3) * L.list.itemH - L.list.h * .3, 0, L.list.max) : 0; requestAnimationFrame(t => { last = t; frame(t); }); }
 Promise.race([Promise.all([document.fonts.load("28px \"Caveat Brush\""), document.fonts.load("18px \"Patrick Hand\"")]), new Promise(r => setTimeout(r, 1500))]).then(start, start);
 window.G = { S, R, buy, apply, tapSlime, update, render, get L() { return L; } };
+
+window.LGH_EIGENER_KNOPF = true;
+window.LGH_ZEILEN = function () { return [{ text: "Ton", an: !S.mute, setze: function (v) { S.mute = !v; save(); } }]; };

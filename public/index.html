@@ -10,8 +10,25 @@
 html,body{margin:0;height:100%;overflow:hidden;background:#2a3350;color:var(--ink);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;overscroll-behavior:none}
 canvas{display:block;width:100vw;height:100vh;height:100dvh;touch-action:none;-webkit-tap-highlight-color:transparent}
 </style><body><canvas id="cv"></canvas><script>
-/* Spielstand aus dem Spiele-Hub einspielen (muss vor dem Spielcode laufen). Der Hub hängt den gespeicherten Stand als #lgh=<Base64url(JSON)> an die Adresse. */
+/* Muss ganz vorn im Spiel stehen, vor dem Spielcode.
+   1. Ist der Browser-Speicher (localStorage) hier gesperrt, etwa weil das Spiel eingebettet im Spiele-Hub läuft, gibt es einen Ersatz im Arbeitsspeicher.
+      Der Spiele-Hub bewahrt den Stand dann auf (siehe Spielstand-Code-Modul).
+   2. Der Hub hängt seinen gespeicherten Stand als #lgh=<Base64url(JSON)> an die Adresse. Er wird hier in den Speicher geschrieben und der Hash entfernt. */
 (function () {
+  var ok = true;
+  try { var t0 = window.localStorage; t0.setItem('__lgh_t', '1'); t0.removeItem('__lgh_t'); } catch (e) { ok = false; }
+  if (!ok) {
+    var m = {}, melde = function () { if (window.__lghAenderung) window.__lghAenderung(); };
+    var shim = {
+      getItem: function (k) { return Object.prototype.hasOwnProperty.call(m, k) ? m[k] : null; },
+      setItem: function (k, v) { if (window.__lghSperre) return; m[k] = String(v); melde(); },
+      removeItem: function (k) { if (window.__lghSperre) return; delete m[k]; melde(); },
+      clear: function () { if (window.__lghSperre) return; m = {}; melde(); },
+      key: function (i) { var k = Object.keys(m); return i < k.length ? k[i] : null; }
+    };
+    Object.defineProperty(shim, 'length', { get: function () { return Object.keys(m).length; } });
+    try { Object.defineProperty(window, 'localStorage', { get: function () { return shim; }, configurable: true }); window.__lghSpeicherErsatz = true; } catch (e) { }
+  }
   try {
     var h = location.hash;
     if (h.indexOf('#lgh=') !== 0) return;
@@ -1181,11 +1198,18 @@ window.LGH_ZEILEN = function () { return [{ text: "Ton", an: !S.mute, setze: fun
   }
   function einspielen(o) {
     // Das Spiel speichert ggf. beim Verlassen noch einmal. Das würde den neuen Stand überschreiben, deshalb Schreiben bis zum Neuladen sperren.
-    for (var k in o.d) if (Object.prototype.hasOwnProperty.call(o.d, k)) setItem.call(ls, k, String(o.d[k]));
+    for (var k in o.d) if (Object.prototype.hasOwnProperty.call(o.d, k)) { if (ls instanceof Storage) setItem.call(ls, k, String(o.d[k])); else ls.setItem(k, String(o.d[k])); }
     if (window.parent !== window) { try { window.parent.postMessage({ lgh: 'stand', spiel: SPIEL, t: Date.now(), d: dump() }, '*'); } catch (e) { } }
     if (window.__lghMeldenAus) window.__lghMeldenAus();
     Storage.prototype.setItem = function () { };
     location.reload();
+  }
+
+  var hubOk = 0;
+  function zeigeStatus() {
+    var s = document.getElementById('lgh-sc-status'); if (!s) return;
+    if (window.parent === window) { s.textContent = ''; return; }
+    s.textContent = hubOk ? 'Im Spiele-Hub gesichert um ' + new Date(hubOk).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' Uhr.' : 'Noch nicht im Spiele-Hub gesichert.' + (window.__lghSpeicherErsatz ? ' (Der Browser sperrt hier den Speicher, der Hub übernimmt das Sichern.)' : '');
   }
 
   /* Eingebettet im Spiele-Hub: Änderungen am Speicher an den Hub melden, der sie dauerhaft aufbewahrt (siehe Vorlade-Skript). */
@@ -1197,6 +1221,7 @@ window.LGH_ZEILEN = function () { return [{ text: "Ton", an: !S.mute, setze: fun
       try { var d = dump(); if (Object.keys(d).length) window.parent.postMessage({ lgh: 'stand', spiel: SPIEL, t: Date.now(), d: d }, '*'); } catch (e) { }
     };
     var plan = function () { if (!timer) timer = setTimeout(melden, 800); };
+    window.__lghAenderung = plan;
     var rem = Storage.prototype.removeItem, clr = Storage.prototype.clear;
     Storage.prototype.setItem = function () { var r = setItem.apply(this, arguments); if (this === ls) plan(); return r; };
     Storage.prototype.removeItem = function () { var r = rem.apply(this, arguments); if (this === ls) plan(); return r; };
@@ -1204,7 +1229,11 @@ window.LGH_ZEILEN = function () { return [{ text: "Ton", an: !S.mute, setze: fun
     window.addEventListener('pagehide', melden);
     document.addEventListener('visibilitychange', function () { if (document.hidden) melden(); });
     setTimeout(melden, 1500);
-    window.__lghMeldenAus = function () { sperre = true; };
+    window.__lghMeldenAus = function () { sperre = true; window.__lghSperre = true; };
+    window.addEventListener('message', function (e) {
+      if (e.source !== window.parent || !e.data || e.data.lgh !== 'ok') return;
+      hubOk = e.data.t; zeigeStatus();
+    });
   }
 
   var css = document.createElement('style');
@@ -1232,6 +1261,7 @@ window.LGH_ZEILEN = function () { return [{ text: "Ton", an: !S.mute, setze: fun
   dlg.id = 'lgh-sc'; dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-label', 'Einstellungen');
   dlg.innerHTML =
     '<div class="box"><h2>Einstellungen</h2><div id="lgh-sc-zeilen"></div>' +
+    '<h3>Spielstand</h3><p id="lgh-sc-status"></p>' +
     '<h3>Spielstand-Code</h3>' +
     '<p>Übertrage deinen Spielstand in ein anderes Fenster, zum Beispiel vom normalen Spiel-Link in den Spiele-Hub.</p>' +
     '<h3>1. Code aus diesem Fenster</h3><textarea id="lgh-sc-aus" readonly></textarea>' +
@@ -1260,7 +1290,7 @@ window.LGH_ZEILEN = function () { return [{ text: "Ton", an: !S.mute, setze: fun
     });
   }
   function auf() {
-    zeilen();
+    zeilen(); zeigeStatus();
     meldung('');
     el('lgh-sc-ein').value = '';
     el('lgh-sc-aus').value = 'Wird erzeugt …';

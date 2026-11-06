@@ -10,6 +10,20 @@
 html,body{margin:0;height:100%;overflow:hidden;background:#2a3350;color:var(--ink);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;overscroll-behavior:none}
 canvas{display:block;width:100vw;height:100vh;height:100dvh;touch-action:none;-webkit-tap-highlight-color:transparent}
 </style><body><canvas id="cv"></canvas><script>
+/* Spielstand aus dem Spiele-Hub einspielen (muss vor dem Spielcode laufen). Der Hub hängt den gespeicherten Stand als #lgh=<Base64url(JSON)> an die Adresse. */
+(function () {
+  try {
+    var h = location.hash;
+    if (h.indexOf('#lgh=') !== 0) return;
+    var t = h.slice(5).replace(/-/g, '+').replace(/_/g, '/');
+    while (t.length % 4) t += '=';
+    var s = atob(t), u = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+    var o = JSON.parse(new TextDecoder().decode(u));
+    if (o && o.d && typeof o.d === 'object') for (var k in o.d) if (Object.prototype.hasOwnProperty.call(o.d, k)) localStorage.setItem(k, String(o.d[k]));
+    history.replaceState(null, '', location.pathname + location.search);
+  } catch (e) { }
+})();
 "use strict";
 /* Reine Rechenfunktionen (ohne Browser), damit man sie in Node simulieren kann */
 const MAXLVL = 87;
@@ -1168,8 +1182,29 @@ window.LGH_ZEILEN = function () { return [{ text: "Ton", an: !S.mute, setze: fun
   function einspielen(o) {
     // Das Spiel speichert ggf. beim Verlassen noch einmal. Das würde den neuen Stand überschreiben, deshalb Schreiben bis zum Neuladen sperren.
     for (var k in o.d) if (Object.prototype.hasOwnProperty.call(o.d, k)) setItem.call(ls, k, String(o.d[k]));
+    if (window.parent !== window) { try { window.parent.postMessage({ lgh: 'stand', spiel: SPIEL, t: Date.now(), d: dump() }, '*'); } catch (e) { } }
+    if (window.__lghMeldenAus) window.__lghMeldenAus();
     Storage.prototype.setItem = function () { };
     location.reload();
+  }
+
+  /* Eingebettet im Spiele-Hub: Änderungen am Speicher an den Hub melden, der sie dauerhaft aufbewahrt (siehe Vorlade-Skript). */
+  if (window.parent !== window) {
+    var timer = 0, sperre = false;
+    var melden = function () {
+      clearTimeout(timer); timer = 0;
+      if (sperre) return;
+      try { var d = dump(); if (Object.keys(d).length) window.parent.postMessage({ lgh: 'stand', spiel: SPIEL, t: Date.now(), d: d }, '*'); } catch (e) { }
+    };
+    var plan = function () { if (!timer) timer = setTimeout(melden, 800); };
+    var rem = Storage.prototype.removeItem, clr = Storage.prototype.clear;
+    Storage.prototype.setItem = function () { var r = setItem.apply(this, arguments); if (this === ls) plan(); return r; };
+    Storage.prototype.removeItem = function () { var r = rem.apply(this, arguments); if (this === ls) plan(); return r; };
+    Storage.prototype.clear = function () { var r = clr.apply(this, arguments); if (this === ls) plan(); return r; };
+    window.addEventListener('pagehide', melden);
+    document.addEventListener('visibilitychange', function () { if (document.hidden) melden(); });
+    setTimeout(melden, 1500);
+    window.__lghMeldenAus = function () { sperre = true; };
   }
 
   var css = document.createElement('style');

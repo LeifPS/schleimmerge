@@ -41,6 +41,8 @@ const runenAn = ru => DLC.besitz && !!ru;                              // ru: is
 const dlcMult = ru => runenAn(ru) ? 1 + RUNEN_BONUS : 1;
 const neueRunenwaffe = () => DLC.besitz && Math.random() < RUNEN_CHANCE;   // neue Waffe aus Kauf oder Kiste
 const mergeRune = (a, b) => a && b ? 1 : 0;                              // Rune + Rune = Rune, sonst normal
+const mergeMax = () => DLC.besitz ? DLC_MAX : BASE_MAX;                    // Nur mit dem DLC lassen sich 87+87 zu Waffe 88 und 88+88 zu Waffe 89 verbinden
+const listMax = () => Math.max(mergeMax(), S.best);                      // Liste: Besitzer sehen 89, alle sehen auch, was sie schon haben
 const btnSichtbar = () => DLC.besitz || (DLC.imHub && DLC.antwort && DLC.preis > 0);
 
 /* ---------- Runenwaffen: dieselben 84 Waffen als dunkler Stein mit leuchtenden Runen ---------- */

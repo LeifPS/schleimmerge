@@ -1,8 +1,8 @@
 "use strict";
 /* Reine Rechenfunktionen (ohne Browser), damit man sie in Node simulieren kann */
-const MAXLVL = 87;
+const BASE_MAX = 87, DLC_MAX = 89, MAXLVL = DLC_MAX;     // BASE_MAX: höchste Waffe ohne DLC; 88 und 89 gibt es nur mit „Runenschmiede“ (MAXLVL = Obergrenze im Spielstand)
 const BEAT = 0.85;                                   // Sekunden zwischen zwei Schlägen
-const dpsOf = l => 4 * Math.pow(2.15, l - 1);         // Schaden pro Sekunde eines Schleims
+const dpsOf = l => 4 * Math.pow(2.15, l - 1) * (l === 88 ? 3 : l === 89 ? 10 : 1);   // die beiden DLC-Waffen haben zusätzlich 3× und 10× Schaden         // Schaden pro Sekunde eines Schleims
 const isBoss = st => st % 10 === 0;
 const baseHp = st => Math.round(14 * Math.pow(1.30, st - 1));
 const hpOf = st => baseHp(st) * (isBoss(st) ? 5 : 1);

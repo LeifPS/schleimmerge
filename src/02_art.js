@@ -3,6 +3,7 @@
 
 /* ---------- Schleime ---------- */
 function slimePalette(l) {
+  if (l === 88) return ["#9ff5e8", "#42d6c4", "#1c8f9e"]; if (l === 89) return ["#fff0ff", "#ff9be8", "#8c7bff"];
   const H = [190, 125, 320, 38, 0, 270, 160, 15, 300, 210];
   const h = l <= 10 ? H[l - 1] : (l * 47 + 13) % 360;
   const span = l <= 10 ? 16 : Math.min(260, 16 + (l - 10) * 5.5);   // ab Stufe 10 wird der Verlauf immer bunter
@@ -21,6 +22,8 @@ function slimeHat(c, g, t, l) {   // Kopfschmuck je Materialstufe: ab Eisen gibt
   else if (t === 7) {
     if (l === 85) { c.lineWidth = .04; c.beginPath(); c.ellipse(0, -.76, .26, .06, 0, 0, 7); c.strokeStyle = "#ffd95a"; c.stroke(); for (const f of [[-.15, .2, .07], [0, .3, .09], [.15, .2, .07]]) flameAt(c, g, f[0], -.76, f[1], f[2], "#ff5a1c", "#ffc13a"); }
     else if (l === 86) { for (const s of [-1, 1]) { c.lineWidth = .028; poly(c, [[s * .08, -.74], [s * .22, -.88], [s * .15, -.9], [s * .27, -1.04], [s * .07, -.93], [s * .14, -.92], [s * .03, -.8]], "#ffe94a"); } }
+    else if (l === 88) { c.lineWidth = .035; c.beginPath(); c.ellipse(0, -.9, .25, .065, 0, 0, 7); c.strokeStyle = "#ffd95a"; c.stroke(); for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + .4; c.lineWidth = .025; c.beginPath(); c.moveTo(Math.cos(a) * .2, -.9 + Math.sin(a) * .052); c.lineTo(Math.cos(a) * .26, -.9 + Math.sin(a) * .068); c.strokeStyle = "#8ffbe9"; c.stroke(); } c.lineWidth = .028; c.beginPath(); c.arc(0, -.97, .05, 0, 7); FS(c, "#6ff3de"); g.strokeStyle = INK; }
+    else if (l === 89) { c.lineWidth = .03; starPath(c, 0, -.95, .14, .055, 0); FS(c, "#ffffff"); c.lineWidth = .02; starPath(c, 0, -.95, .08, .032, .3); FS(c, "#ff9be8"); g.strokeStyle = INK; }
     else { c.lineWidth = .05; c.beginPath(); c.ellipse(0, -.93, .25, .066, 0, 0, 7); c.strokeStyle = "#12082a"; c.stroke(); c.lineWidth = .02; c.beginPath(); c.ellipse(0, -.93, .25, .066, 0, 0, 7); c.strokeStyle = "#c08cff"; c.stroke(); c.lineWidth = .028; c.beginPath(); c.arc(0, -1.0, .06, 0, 7); FS(c, "#0a0418"); g.strokeStyle = INK; }
   }
   else if (t === 6) { c.lineWidth = .035; c.beginPath(); c.ellipse(0, -.9, .27, .07, 0, 0, 7); c.strokeStyle = "#9fd8ff"; c.stroke(); c.lineWidth = .02; c.beginPath(); c.ellipse(0, -.9, .2, .042, 0, 0, 7); c.strokeStyle = "#fff"; c.stroke(); for (const s of [[-.21, -.97, .055], [0, -1.0, .07], [.21, -.97, .055]]) { c.lineWidth = .025; starPath(c, s[0], s[1], s[2], s[2] * .45, 0); FS(c, "#e4f4ff"); } g.strokeStyle = INK; }
@@ -254,9 +257,9 @@ function weaponFrame(l, tm) {
   return o.cv;
 }
 
-/* ---------- Drei Spezialwaffen (Level 85-87): jede mit eigener Form und eigener Animation ---------- */
+/* ---------- Spezialwaffen (Level 85-87, dazu 88 und 89 nur mit dem DLC): jede mit eigener Form und eigener Animation ---------- */
 const SPW = { w: 440, ox: 220, oy: 300 }, specialCache = {};
-const SPECIAL_NAMES = ["Phönixschwert", "Sturmhammer", "Leerenstab"];
+const SPECIAL_NAMES = ["Phönixschwert", "Sturmhammer", "Leerenstab", "Chronosichel", "Urknallklinge"];
 function weaponMeta(l) { return wTier(l) === 7 ? SPW : { w: WP_W, ox: WP_OX, oy: WP_OY }; }
 function glowAt(g, x, y, r, rgb, a) { g.save(); g.globalCompositeOperation = "lighter"; const rg = g.createRadialGradient(x, y, r * .05, x, y, r); rg.addColorStop(0, "rgba(" + rgb + "," + a + ")"); rg.addColorStop(1, "rgba(" + rgb + ",0)"); g.fillStyle = rg; g.fillRect(x - r, y - r, r * 2, r * 2); g.restore(); }
 function poly(c, pts, fill) { c.beginPath(); pts.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])); c.closePath(); FS(c, fill); }
@@ -344,7 +347,67 @@ function voidStaff(c, g, tm, l) {
   for (let i = 0; i < 30; i++) { const ph = (tm * .33 + i / 30) % 1, r = .85 * (1 - ph) + .2, a = i * 2.4 + ph * 7, x = Math.cos(a) * r, y = Math.sin(a) * r * .32; g.globalAlpha = Math.sin(ph * Math.PI) * .95; g.fillStyle = i % 3 === 0 ? "#ffffff" : i % 3 === 1 ? "#c8a0ff" : "#ffb040"; g.beginPath(); g.arc(x, y, .018 * (1.2 - ph * .5), 0, 7); g.fill(); if (i % 5 === 0) { sparklePath(g, x, y, .04); g.fill(); } }
   g.restore();
 }
-const SPECIAL_DRAW = [phoenixSword, stormHammer, voidStaff];
+/* ---------- Zwei Waffen nur mit dem DLC Runenschmiede (Level 88 und 89) ---------- */
+function chronoScythe(c, g, tm, l) {
+  const pu = .5 + .5 * Math.sin(tm * 2.4), CX = -.4, CY = -.93, R = .34;
+  glowAt(g, -.35, -1.0, 1.0, "70,230,210", .24 + .12 * pu);
+  /* Zeitring in der Sichel: Stundenmarken, ein schneller und ein langsamer Zeiger */
+  g.save(); g.translate(CX, CY);
+  g.fillStyle = "rgba(8,40,60,.6)"; g.beginPath(); g.arc(0, 0, R, 0, 7); g.fill();
+  g.strokeStyle = "rgba(255,215,110,.9)"; g.lineWidth = .024; g.beginPath(); g.arc(0, 0, R, 0, 7); g.stroke();
+  for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6, r0 = R * (i % 3 ? .84 : .72); g.strokeStyle = "rgba(255,236,160,.95)"; g.lineWidth = i % 3 ? .013 : .024; g.beginPath(); g.moveTo(Math.sin(a) * r0, -Math.cos(a) * r0); g.lineTo(Math.sin(a) * R * .95, -Math.cos(a) * R * .95); g.stroke(); }
+  g.lineCap = "round";
+  for (const h of [[tm * 2.6, .78, .02], [tm * .22, .5, .03]]) { g.strokeStyle = INK; g.lineWidth = h[2] + .018; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.sin(h[0]) * R * h[1], -Math.cos(h[0]) * R * h[1]); g.stroke(); g.strokeStyle = "#8ffbe9"; g.lineWidth = h[2]; g.stroke(); }
+  g.fillStyle = "#ffd95a"; g.beginPath(); g.arc(0, 0, .03, 0, 7); g.fill();
+  g.globalCompositeOperation = "lighter"; for (let i = 0; i < 3; i++) { const ph = (tm * .35 + i / 3) % 1; g.globalAlpha = (1 - ph) * .5; g.strokeStyle = "#7dfbe9"; g.lineWidth = .012; g.beginPath(); g.arc(0, 0, R * (1 + ph * .5), 0, 7); g.stroke(); }
+  g.restore();
+  /* Schaft mit goldenen Bändern */
+  c.lineWidth = .03; poly(c, [[-.035, -1.0], [.035, -1.0], [.03, .14], [-.03, .14]], "#1d3b4a");
+  g.strokeStyle = "#ffd95a"; g.lineWidth = .02; for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(-.035, -.7 + i * .15); g.lineTo(.035, -.66 + i * .15); g.stroke(); } g.strokeStyle = INK;
+  /* Sichelklinge */
+  const bl = k => { k.beginPath(); k.moveTo(.04, -.9); k.bezierCurveTo(.02, -1.4, -.6, -1.5, -.92, -1.1); k.lineTo(-.99, -.8); k.bezierCurveTo(-.84, -1.17, -.5, -1.27, -.14, -1.08); k.bezierCurveTo(-.05, -1.04, -.03, -.98, -.03, -.88); k.closePath(); };
+  const gr = g.createLinearGradient(-.99, -.8, .04, -1.5); gr.addColorStop(0, "#1c8f9e"); gr.addColorStop(.45, "#6ff3de"); gr.addColorStop(.8, "#ffffff"); gr.addColorStop(1, "#8ffbe9");
+  c.lineWidth = .035; bl(c); FS(c, gr);
+  g.save(); bl(g); g.clip(); const sx = -1.1 + ((tm * .55) % 1) * 1.5; const sg = g.createLinearGradient(sx - .12, 0, sx + .12, 0); sg.addColorStop(0, "rgba(255,255,255,0)"); sg.addColorStop(.5, "rgba(255,255,255,.75)"); sg.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = sg; g.fillRect(sx - .12, -1.7, .24, 1); g.restore();
+  g.strokeStyle = "rgba(255,255,255,.8)"; g.lineWidth = .016; g.beginPath(); g.moveTo(.0, -.98); g.bezierCurveTo(-.04, -1.37, -.56, -1.44, -.88, -1.1); g.stroke(); g.strokeStyle = INK;
+  c.lineWidth = .03; c.beginPath(); c.arc(0, -.93, .045, 0, 7); FS(c, "#ffd95a");
+  /* Sanduhr am Ende */
+  poly(c, [[-.085, .12], [.085, .12], [0, .215]], "#bff7ff"); poly(c, [[-.085, .31], [.085, .31], [0, .215]], "#bff7ff");
+  g.fillStyle = "#ffd95a"; g.fillRect(-.007, .215, .014, .08); const sh = ((tm * .25) % 1); g.beginPath(); g.moveTo(-.07 * (1 - sh), .31); g.lineTo(.07 * (1 - sh), .31); g.lineTo(0, .31 - .08 * (1 - sh)); g.closePath(); g.fill();
+  c.lineWidth = .03; poly(c, [[-.1, .105], [.1, .105], [.1, .12], [-.1, .12]], "#ffd95a"); poly(c, [[-.1, .31], [.1, .31], [.1, .325], [-.1, .325]], "#ffd95a");
+  /* Sand fällt von der Spitze, anderer Sand steigt im Ring auf (die Zeit läuft rückwärts) */
+  g.save(); for (let i = 0; i < 16; i++) { const ph = (tm * .5 + i / 16) % 1; g.globalAlpha = Math.sin(ph * Math.PI); g.fillStyle = i % 3 ? "#ffd95a" : "#fff3b0"; g.beginPath(); g.arc(-.99 + Math.sin(i * 2.1 + ph * 3) * .05, -.8 + ph * .85, .016 * (1.2 - ph * .5), 0, 7); g.fill(); }
+  for (let i = 0; i < 10; i++) { const ph = (tm * .4 + i / 10) % 1, a = i * 2.4 + ph * 3; g.globalAlpha = Math.sin(ph * Math.PI) * .9; g.fillStyle = "#8ffbe9"; g.beginPath(); g.arc(CX + Math.cos(a) * R * .8, CY + R * .6 - ph * R * 1.4, .014, 0, 7); g.fill(); } g.restore();
+}
+function bigBangBlade(c, g, tm, l) {
+  const pu = .5 + .5 * Math.sin(tm * 2.8), cy = -.88;
+  glowAt(g, 0, cy, 1.15, "255,140,235", .3 + .15 * pu); glowAt(g, 0, cy, .7, "140,230,255", .3);
+  /* Strahlen drehen sich um die Klinge, Schockwellen laufen nach außen */
+  g.save(); g.translate(0, cy); g.scale(1.45, 1); g.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 12; i++) { const a = tm * .5 + i * Math.PI / 6, len = (i % 2 ? .4 : .64) * (.92 + .08 * Math.sin(tm * 4 + i)), w = i % 2 ? .06 : .09; g.fillStyle = hexA(hsl(tm * 60 + i * 30, 1, .7), .3); g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a - w) * len, Math.sin(a - w) * len); g.lineTo(Math.cos(a + w) * len, Math.sin(a + w) * len); g.closePath(); g.fill(); }
+  for (let k = 0; k < 3; k++) { const ph = (tm * .4 + k / 3) % 1; g.globalAlpha = (1 - ph) * .85; g.strokeStyle = hsl(tm * 120 + k * 120, 1, .75); g.lineWidth = .006 + .02 * (1 - ph); g.beginPath(); g.arc(0, 0, .12 + ph * .54, 0, 7); g.stroke(); }
+  g.restore();
+  /* Griff */
+  c.lineWidth = .03; poly(c, [[-.04, -.28], [.04, -.28], [.035, .12], [-.035, .12]], "#2d2060");
+  g.fillStyle = "#e8f6ff"; for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(0, -.18 + i * .1, .017, 0, 7); g.fill(); }
+  /* Klinge: Farbverlauf wandert, im Inneren funkeln Sterne */
+  const bl = k => { k.beginPath(); k.moveTo(-.07, -.34); k.lineTo(-.125, -.9); k.lineTo(-.07, -1.3); k.lineTo(0, -1.5); k.lineTo(.07, -1.3); k.lineTo(.125, -.9); k.lineTo(.07, -.34); k.closePath(); };
+  const gr = g.createLinearGradient(0, -1.5, 0, -.34); gr.addColorStop(0, "#ffffff"); gr.addColorStop(.3, hsl(190 + tm * 50, .9, .78)); gr.addColorStop(.62, hsl(300 + tm * 50, .9, .75)); gr.addColorStop(1, hsl(250 + tm * 50, .8, .6));
+  c.lineWidth = .035; bl(c); FS(c, gr);
+  g.save(); bl(g); g.clip();
+  for (let i = 0; i < 14; i++) { const ph = (tm * .35 + i / 14) % 1, x = Math.sin(i * 2.7) * .07, y = -.36 - ph * 1.1; g.globalAlpha = Math.sin(ph * Math.PI); g.fillStyle = "#ffffff"; sparklePath(g, x, y, .03); g.fill(); }
+  g.restore(); g.strokeStyle = "rgba(255,255,255,.9)"; g.lineWidth = .02; g.beginPath(); g.moveTo(0, -.4); g.lineTo(0, -1.38); g.stroke(); g.strokeStyle = INK;
+  /* Parierstange aus zwei kreisenden Atomringen mit Planeten */
+  for (const s of [-1, 1]) { g.save(); g.translate(0, -.3); g.rotate(s * .45); g.strokeStyle = INK; g.lineWidth = .056; g.beginPath(); g.ellipse(0, 0, .36, .1, 0, 0, 7); g.stroke(); g.strokeStyle = "#ffd95a"; g.lineWidth = .028; g.stroke();
+    const a = tm * 2.2 * s + (s > 0 ? 0 : 2), px = Math.cos(a) * .36, py = Math.sin(a) * .1; g.fillStyle = INK; g.beginPath(); g.arc(px, py, .052, 0, 7); g.fill(); g.fillStyle = s > 0 ? "#6fe0ff" : "#ff8fe0"; g.beginPath(); g.arc(px, py, .036, 0, 7); g.fill(); g.restore(); }
+  c.beginPath(); c.arc(0, -.3, .05, 0, 7); FS(c, "#ffffff");
+  starPath(c, 0, .18, .11, .05, tm * .6); c.lineWidth = .03; FS(c, "#ffe27a");
+  glowAt(g, 0, .18, .25, "255,230,150", .4 + .2 * pu);
+  /* Funken fliegen in alle Richtungen weg */
+  g.save(); for (let i = 0; i < 22; i++) { const ph = (tm * .5 + i / 22) % 1, a = i * 2.4, r = .1 + ph * .62, x = Math.cos(a) * r * 1.45, y = cy + Math.sin(a) * r; g.globalAlpha = Math.sin(ph * Math.PI); g.fillStyle = hsl(i * 40 + tm * 60, 1, .78);
+    if (i % 3 === 0) { sparklePath(g, x, y, .04); g.fill(); } else { g.beginPath(); g.arc(x, y, .016, 0, 7); g.fill(); } } g.restore();
+}
+const SPECIAL_DRAW = [phoenixSword, stormHammer, voidStaff, chronoScythe, bigBangBlade];
 function specialFrame(l, tm) {
   const key = Math.floor(tm * 20); let o = specialCache[l]; if (!o) o = specialCache[l] = { cv: mkCanvas(SPW.w, SPW.w), key: -1 };
   if (o.key === key) return o.cv; o.key = key;

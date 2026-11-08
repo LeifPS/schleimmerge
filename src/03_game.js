@@ -112,7 +112,7 @@ function layout() {
   { const o = L.opt; L.ench = { x: o.x + o.w + (land ? 8 : 6), y: o.y, w: o.w, h: o.h }; }
   for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) L.cells.push({ x: gx + c * (cs + gap), y: gy + r * (cs + gap), w: cs, h: cs });
   L.grid = { x: gx, y: gy, w: gw, h: gw, cs };
-  if (L.list) { L.list.itemH = L.list.w * 1.3; L.list.head = Math.min(48, H * .07); L.list.max = Math.max(0, L.list.head + MAXLVL * L.list.itemH - H + 12); listScroll = clamp(listScroll, 0, L.list.max); }
+  if (L.list) { L.list.itemH = L.list.w * 1.3; L.list.head = Math.min(48, H * .07); L.list.max = Math.max(0, L.list.head + listMax() * L.list.itemH - H + 12); listScroll = clamp(listScroll, 0, L.list.max); }
 }
 function rr(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.lineTo(x + w - r, y); c.quadraticCurveTo(x + w, y, x + w, y + r); c.lineTo(x + w, y + h - r); c.quadraticCurveTo(x + w, y + h, x + w - r, y + h); c.lineTo(x + r, y + h); c.quadraticCurveTo(x, y + h, x, y + h - r); c.lineTo(x, y + r); c.quadraticCurveTo(x, y, x + r, y); c.closePath(); }
 
@@ -174,7 +174,7 @@ function apply(src, dst) {
   const a = getL(src), b = getL(dst), ra = getR(src), rb = getR(dst);
   if (!a) return;
   if (!b) { setL(dst, a, ra); setL(src, 0); popOf(dst)[dst.i] = .6; sfx.move(); }
-  else if (a === b && a < MAXLVL) merge(src, dst);
+  else if (a === b && a < mergeMax()) merge(src, dst);
   else { setL(dst, a, ra); setL(src, b, rb); popOf(dst)[dst.i] = .6; popOf(src)[src.i] = .6; sfx.move(); }
 }
 function buy() {
@@ -203,7 +203,7 @@ function kill(i) {
 function openChest(i, rew) {
   const r = R[i], Ls = L.lanes[i], bonus = rew * 3; S.coins += bonus; r.chestAnim = 1; sfx.chest();
   coinBurst(Ls.chestX, Ls.floorY - Ls.chestS * .5, 8, Ls.monH * .18); sparks(Ls.chestX, Ls.floorY - Ls.chestS * .6, 12, "#fff0a0", 200); say("+" + fmt(bonus), Ls.chestX, Ls.floorY - Ls.chestS * 1.2, "#ffd23f", 26);
-  const fc = freeCell(); if (fc >= 0 && Math.random() < .5) { const lv = Math.min(MAXLVL, spawnLvl(S.best) + 1); S.grid[fc] = lv; S.gridR[fc] = neueRunenwaffe() ? 1 : 0; if (lv > S.best) S.best = lv; gridPop[fc] = 1; const c = L.cells[fc]; sparks(c.x + c.w / 2, c.y + c.h / 2, 10, "#fff6a8", 160); say("Schleim aus der Kiste", L.grid.x + L.grid.w / 2, L.grid.y - 10, "#bff7ff", 22); }
+  const fc = freeCell(); if (fc >= 0 && Math.random() < .5) { const lv = Math.min(mergeMax(), spawnLvl(S.best) + 1); S.grid[fc] = lv; S.gridR[fc] = neueRunenwaffe() ? 1 : 0; if (lv > S.best) S.best = lv; gridPop[fc] = 1; const c = L.cells[fc]; sparks(c.x + c.w / 2, c.y + c.h / 2, 10, "#fff6a8", 160); say("Schleim aus der Kiste", L.grid.x + L.grid.w / 2, L.grid.y - 10, "#bff7ff", 22); }
 }
 /* Auswahl der Kampfstufe: nur bis zur höchsten freigeschalteten; alle Bahnen bekommen sofort ein frisches Monster dieser Stufe */
 let stageHold = null;
@@ -365,12 +365,12 @@ function drawBin() {
 }
 function drawList() {
   const li = L.list; if (!li) return; ctx.save(); ctx.beginPath(); ctx.rect(0, 0, li.w - 3, VH); ctx.clip();
-  const sz = li.w * .52; for (let l = 1; l <= MAXLVL; l++) {
+  const sz = li.w * .52; const LM = listMax(); li.max = Math.max(0, li.head + LM * li.itemH - VH + 12); for (let l = 1; l <= LM; l++) {
     const y = li.head + (l - 1) * li.itemH - listScroll; if (y > VH + li.itemH || y < -li.itemH) continue; const by = y + li.itemH * .62, cx = li.w * .42;
     if (l <= S.best) drawSlime(l, cx, by, sz, { ph: l }); else drawLocked(l, cx, by, sz);
     txt("LVL " + l, li.w / 2, y + li.itemH * .83, Math.max(13, li.w * .17), l <= S.best ? "#8fe3ff" : "#6f7ab0", "center", "#141a3c");
   }
-  ctx.fillStyle = "#262f66"; ctx.fillRect(0, 0, li.w, li.head); txt(S.best + "/" + MAXLVL, li.w / 2, li.head * .5, Math.max(18, li.w * .24), "#8fe3ff", "center", "#141a3c"); ctx.restore();
+  ctx.fillStyle = "#262f66"; ctx.fillRect(0, 0, li.w, li.head); txt(S.best + "/" + LM, li.w / 2, li.head * .5, Math.max(18, li.w * .24), "#8fe3ff", "center", "#141a3c"); ctx.restore();
 }
 function drawParts() {
   for (const p of parts) {

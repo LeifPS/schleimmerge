@@ -3,15 +3,16 @@
 const cv = $("cv"), ctx = cv.getContext("2d");
 let VW = 0, VH = 0, DPR = 1, L = null, time = 0;
 const SAVEKEY = "schleimmerge.v1";
-const newLane = () => ({ lvl: 0, stage: 1, hp: hpOf(1), chest: 0 });
+const newLane = () => ({ lvl: 0, rune: 0, stage: 1, hp: hpOf(1), chest: 0 });
 const ownedUnits = sl => { let u = 0; for (const v of S.grid) if (v > 0) u += Math.pow(2, v - sl); for (const l of S.lanes) if (l.lvl > 0) u += Math.pow(2, l.lvl - sl); return u; };
-const fresh = () => ({ v: 1, coins: 30, grid: [1, 1, 0, 0, 0, 0, 0, 0, 0], lanes: [newLane(), newLane(), newLane()], buys: {}, best: 1, kills: 0, merges: 0, unlocked: 1, sel: 1, saved: Date.now() });
+const fresh = () => ({ v: 1, coins: 30, grid: [1, 1, 0, 0, 0, 0, 0, 0, 0], gridR: [0, 0, 0, 0, 0, 0, 0, 0, 0], lanes: [newLane(), newLane(), newLane()], buys: {}, best: 1, kills: 0, merges: 0, unlocked: 1, sel: 1, saved: Date.now() });
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(SAVEKEY));
     if (s && s.v === 1 && Array.isArray(s.grid) && s.grid.length === 9 && Array.isArray(s.lanes) && s.lanes.length === 3) {
       s.grid = s.grid.map(v => clamp(v | 0, 0, MAXLVL));
-      s.lanes.forEach(l => { l.lvl = clamp(l.lvl | 0, 0, MAXLVL); l.stage = Math.max(1, l.stage | 0); if (!(l.hp > 0)) l.hp = hpOf(l.stage); l.chest = l.chest | 0; });
+      s.gridR = s.grid.map((v, i) => v > 0 && Array.isArray(s.gridR) && s.gridR[i] ? 1 : 0);   // DLC Runenschmiede: welche Waffen im Raster Runenwaffen sind
+      s.lanes.forEach(l => { l.lvl = clamp(l.lvl | 0, 0, MAXLVL); l.rune = l.lvl > 0 && l.rune ? 1 : 0; l.stage = Math.max(1, l.stage | 0); if (!(l.hp > 0)) l.hp = hpOf(l.stage); l.chest = l.chest | 0; });
       /* Stufenwahl: alte Spielstände kannten pro Bahn eine eigene Stufe. Freigeschaltet ist nun die höchste, die eine Bahn erreicht hatte;
          ausgewählt wird diese Stufe, und alle Bahnen kämpfen dort (Bahnen weiter hinten bekommen ein frisches Monster). */
       const mx = Math.max(1, ...s.lanes.map(l => l.stage));
@@ -75,7 +76,8 @@ function offlineProgress(sec) {
 /* Jeder Boss ist einzigartig: Kopfstück wechselt, und nach jedem Durchlauf durch alle Monsterarten kommt ein neuer Farbton dazu */
 const monInfo = st => { const n = Math.floor((st - 1) / 10) + 1, boss = isBoss(st); return { kind: (n - 1) % MONS.length, tint: Math.floor((st - 1) / 60), boss, acc: (n - 1 + Math.floor((n - 1) / MONS.length)) % 6, deg: boss ? Math.floor((n - 1) / MONS.length) * 61 : 0 }; };
 const getL = r => r.t === "g" ? S.grid[r.i] : S.lanes[r.i].lvl;
-const setL = (r, v) => { if (r.t === "g") S.grid[r.i] = v; else S.lanes[r.i].lvl = v; if (v > S.best) S.best = v; };
+const getR = r => (r.t === "g" ? S.gridR[r.i] : S.lanes[r.i].rune) ? 1 : 0;   // Runenwaffe? (DLC Runenschmiede)
+const setL = (r, v, ru) => { const f = v > 0 && ru ? 1 : 0; if (r.t === "g") { S.grid[r.i] = v; S.gridR[r.i] = f; } else { S.lanes[r.i].lvl = v; S.lanes[r.i].rune = f; } if (v > S.best) S.best = v; };
 const popOf = r => r.t === "g" ? gridPop : lanePop;
 const refRect = r => r.t === "g" ? L.cells[r.i] : L.lanes[r.i].slot;
 const freeCell = () => S.grid.indexOf(0);
@@ -163,23 +165,23 @@ function puffs(x, y, n, sz) { for (let i = 0; i < n; i++) { const a = Math.rando
 function coinBurst(x, y, n, size) { for (let i = 0; i < n; i++) { const a = -Math.PI / 2 + (Math.random() - .5) * 2.2, v = 150 + Math.random() * 170; parts.push({ type: "coin", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: -Math.random() * .1, life: 1, size, phase: 0 }); } }
 
 function merge(src, dst) {
-  const a = getL(src); setL(dst, a + 1); setL(src, 0); S.merges++; popOf(dst)[dst.i] = 1; const rc = refRect(dst), cx = rc.x + rc.w / 2, cy = rc.y + rc.h * .55;
+  const a = getL(src), ru = mergeRune(getR(src), getR(dst)); setL(dst, a + 1, ru); setL(src, 0); S.merges++; popOf(dst)[dst.i] = 1; const rc = refRect(dst), cx = rc.x + rc.w / 2, cy = rc.y + rc.h * .55;
   sparks(cx, cy, 14, "#fff6a8", 190); puffs(cx, cy + rc.h * .2, 4, rc.w); sfx.merge(a + 1);
   if (a + 1 > bestShown) { bestShown = a + 1; banner = { lvl: a + 1, t: 0 }; sparks(cx, cy, 14, "#ffd1ff", 230); }
 }
 function apply(src, dst) {
   if (src.t === dst.t && src.i === dst.i) return;
-  const a = getL(src), b = getL(dst);
+  const a = getL(src), b = getL(dst), ra = getR(src), rb = getR(dst);
   if (!a) return;
-  if (!b) { setL(dst, a); setL(src, 0); popOf(dst)[dst.i] = .6; sfx.move(); }
+  if (!b) { setL(dst, a, ra); setL(src, 0); popOf(dst)[dst.i] = .6; sfx.move(); }
   else if (a === b && a < MAXLVL) merge(src, dst);
-  else { setL(dst, a); setL(src, b); popOf(dst)[dst.i] = .6; popOf(src)[src.i] = .6; sfx.move(); }
+  else { setL(dst, a, ra); setL(src, b, rb); popOf(dst)[dst.i] = .6; popOf(src)[src.i] = .6; sfx.move(); }
 }
 function buy() {
   const sl = spawnLvl(S.best), cost = costOf(sl, ownedUnits(sl)), b = L.buy, fc = freeCell();
   if (fc < 0) { buyShake = 1; say("Kein Platz mehr", b.x + b.w / 2, b.y - 10, "#ffb0b0", 24); sfx.fail(); return; }
   if (S.coins < cost) { buyShake = 1; say("Zu wenig Münzen", b.x + b.w / 2, b.y - 10, "#ffb0b0", 24); sfx.fail(); return; }
-  S.coins -= cost; S.buys[sl] = (S.buys[sl] | 0) + 1; S.grid[fc] = sl; gridPop[fc] = 1; const c = L.cells[fc]; puffs(c.x + c.w / 2, c.y + c.h * .8, 5, c.w); sparks(c.x + c.w / 2, c.y + c.h / 2, 6, "#bff7ff", 120); sfx.buy();
+  S.coins -= cost; S.buys[sl] = (S.buys[sl] | 0) + 1; S.grid[fc] = sl; S.gridR[fc] = neueRunenwaffe() ? 1 : 0; gridPop[fc] = 1; const c = L.cells[fc]; puffs(c.x + c.w / 2, c.y + c.h * .8, 5, c.w); sparks(c.x + c.w / 2, c.y + c.h / 2, 6, "#bff7ff", 120); sfx.buy();
 }
 function hitMonster(i, dmg, chain) {
   const ln = S.lanes[i], r = R[i], Ls = L.lanes[i], crit = Math.random() < .12; if (crit) dmg *= 2;
@@ -201,7 +203,7 @@ function kill(i) {
 function openChest(i, rew) {
   const r = R[i], Ls = L.lanes[i], bonus = rew * 3; S.coins += bonus; r.chestAnim = 1; sfx.chest();
   coinBurst(Ls.chestX, Ls.floorY - Ls.chestS * .5, 8, Ls.monH * .18); sparks(Ls.chestX, Ls.floorY - Ls.chestS * .6, 12, "#fff0a0", 200); say("+" + fmt(bonus), Ls.chestX, Ls.floorY - Ls.chestS * 1.2, "#ffd23f", 26);
-  const fc = freeCell(); if (fc >= 0 && Math.random() < .5) { const lv = Math.min(MAXLVL, spawnLvl(S.best) + 1); S.grid[fc] = lv; if (lv > S.best) S.best = lv; gridPop[fc] = 1; const c = L.cells[fc]; sparks(c.x + c.w / 2, c.y + c.h / 2, 10, "#fff6a8", 160); say("Schleim aus der Kiste", L.grid.x + L.grid.w / 2, L.grid.y - 10, "#bff7ff", 22); }
+  const fc = freeCell(); if (fc >= 0 && Math.random() < .5) { const lv = Math.min(MAXLVL, spawnLvl(S.best) + 1); S.grid[fc] = lv; S.gridR[fc] = neueRunenwaffe() ? 1 : 0; if (lv > S.best) S.best = lv; gridPop[fc] = 1; const c = L.cells[fc]; sparks(c.x + c.w / 2, c.y + c.h / 2, 10, "#fff6a8", 160); say("Schleim aus der Kiste", L.grid.x + L.grid.w / 2, L.grid.y - 10, "#bff7ff", 22); }
 }
 /* Auswahl der Kampfstufe: nur bis zur höchsten freigeschalteten; alle Bahnen bekommen sofort ein frisches Monster dieser Stufe */
 let stageHold = null;
@@ -219,7 +221,7 @@ function update(dt) {
     const ln = S.lanes[i], r = R[i];
     r.swing = Math.max(0, r.swing - dt * 3.4); r.hit = Math.max(0, r.hit - dt * 5); r.spawn = Math.min(1, r.spawn + dt * 2.2); r.chestAnim = Math.max(0, r.chestAnim - dt * 1.1); r.chestBump = Math.max(0, r.chestBump - dt * 3);
     if (r.dying > 0) { r.dying -= dt * 1.8; if (r.dying <= 0) { r.dying = 0; nextMonster(i); } continue; }
-    if (ln.lvl > 0 && r.spawn >= 1) { r.atk += dt; if (r.atk >= BEAT) { r.atk -= BEAT; hitMonster(i, dpsOf(ln.lvl) * BEAT * dlcMult()); } }
+    if (ln.lvl > 0 && r.spawn >= 1) { r.atk += dt; if (r.atk >= BEAT) { r.atk -= BEAT; hitMonster(i, dpsOf(ln.lvl) * BEAT * dlcMult(ln.rune)); } }
   }
   for (let i = 0; i < 9; i++) gridPop[i] = Math.max(0, gridPop[i] - dt * 3.2);
   for (let i = 0; i < 3; i++) lanePop[i] = Math.max(0, lanePop[i] - dt * 3.2);
@@ -285,7 +287,7 @@ function drawSlime(l, cx, by, size, o) {
   const dx = -SL_OX * k, dy = -SL_OY * k, dw = SL_W * k;
   ctx.drawImage(slimeSprite(l), dx, dy, dw, dw);
   const blink = ((time * .6 + l * .37) % 4) < .12; ctx.drawImage(faceSprite(l, o.attack ? 2 : blink ? 1 : 0), dx, dy, dw, dw);
-  const wk = size * 1.05 / WP_U; ctx.save(); ctx.translate(size * .42, -size * .2); ctx.rotate(o.ang != null ? o.ang : .25 + Math.sin(time * 2 + l) * .04); const wm = weaponMeta(l); ctx.drawImage(weaponFrameD(l, time), -wm.ox * wk, -wm.oy * wk, wm.w * wk, wm.w * wk); if (runenAn()) runeFx(ctx, l, WP_U * wk, o.col); else if (wTier(l) >= 3 && wTier(l) < 7) weaponFx(ctx, l, wTier(l), WP_U * wk); ctx.restore();
+  const wk = size * 1.05 / WP_U; ctx.save(); ctx.translate(size * .42, -size * .2); ctx.rotate(o.ang != null ? o.ang : .25 + Math.sin(time * 2 + l) * .04); const wm = weaponMeta(l); ctx.drawImage(weaponFrameD(l, time, o.rune), -wm.ox * wk, -wm.oy * wk, wm.w * wk, wm.w * wk); if (runenAn(o.rune)) runeFx(ctx, l, WP_U * wk, o.col); else if (wTier(l) >= 3 && wTier(l) < 7) weaponFx(ctx, l, wTier(l), WP_U * wk); ctx.restore();
   ctx.restore();
 }
 function drawLocked(l, cx, by, size) { const k = size / SL_U; ctx.globalAlpha = .55; ctx.drawImage(slimeSil(l), cx - SL_OX * k, by - SL_OY * k, SL_W * k, SL_W * k); ctx.globalAlpha = 1; }
@@ -299,7 +301,7 @@ function drawGrid() {
   const pl = pairLevels(), tut = S.merges < 3, dl = drag ? drag.lvl : 0, pulse = .5 + .5 * Math.sin(time * 6);
   L.cells.forEach((c, i) => {
     const l = S.grid[i], isDrag = drag && drag.ref.t === "g" && drag.ref.i === i;
-    if (l && !isDrag) { const sz = c.w * .66, po = gridPop[i] > 0 ? 1 + Math.sin(gridPop[i] * Math.PI) * .22 : 1; drawSlime(l, c.x + c.w * .46, c.y + c.h * .86, sz, { ph: i, pop: po, sq: gridPop[i] > 0 ? -Math.sin(gridPop[i] * Math.PI) * .05 : 0 }); }
+    if (l && !isDrag) { const sz = c.w * .66, po = gridPop[i] > 0 ? 1 + Math.sin(gridPop[i] * Math.PI) * .22 : 1; drawSlime(l, c.x + c.w * .46, c.y + c.h * .86, sz, { rune: S.gridR[i], ph: i, pop: po, sq: gridPop[i] > 0 ? -Math.sin(gridPop[i] * Math.PI) * .05 : 0 }); }
     const hint = (drag && l !== 0 ? false : false);
     let glow = 0; if (drag && !isDrag && l === dl && l) glow = 1; else if (!drag && tut && l && pl[l] >= 2) glow = .6;
     if (drag && !isDrag && !l) glow = .25;
@@ -313,7 +315,7 @@ function drawLanes() {
     /* Schleim im Platz */
     if (ln.lvl && !isDrag) {
       const ss = sl.w, size = ss * .74, phase = 1 - r.swing, dx = r.swing > 0 ? Math.sin(clamp((phase - .2) / .5, 0, 1) * Math.PI) * ss * .2 : 0, po = lanePop[i] > 0 ? 1 + Math.sin(lanePop[i] * Math.PI) * .2 : 1;
-      drawSlime(ln.lvl, sl.x + ss * .44, sl.y + ss * .88, size, { ph: i * 2, dx, ang: swingAng(r), attack: r.swing > 0, pop: po, col: enchCol(i) });
+      drawSlime(ln.lvl, sl.x + ss * .44, sl.y + ss * .88, size, { rune: ln.rune, ph: i * 2, dx, ang: swingAng(r), attack: r.swing > 0, pop: po, col: enchCol(i) });
       const ds = Math.max(14, ss * .17); ctx.drawImage(weaponSprite(14), sl.x + ss * .04, sl.y + ss * .03, ds * 1.25, ds * 1.25); txt(fmt(dpsOf(ln.lvl)), sl.x + ss * .04 + ds * 1.3, sl.y + ds * .72, ds, "#fff", "left");
     } else if (!ln.lvl && !isDrag) { const pu = .5 + .5 * Math.sin(time * 4); txt("frei", sl.x + sl.w / 2, sl.y + sl.h / 2, Math.max(16, sl.w * .2), "rgba(255,255,255," + (.45 + (hasG && !anyEq ? pu * .5 : 0)) + ")"); }
     enchBadge(i, sl);
@@ -408,7 +410,7 @@ function render() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.lineJoin = ctx.lineCap = "round"; ctx.clearRect(0, 0, VW, VH);
   ctx.drawImage(bgC, 0, 0, VW, VH);
   drawList(); drawCounter(); drawMute(); drawOpt(); drawEnchBtn(); drawStageSel(); drawGrid(); drawLanes(); drawBuy(); drawBin(); drawParts(); drawBanner(); drawEnchPanel();
-  if (drag) { const sz = L.grid.cs * .8, rc = drag; ctx.save(); ctx.fillStyle = "rgba(10,10,40,.3)"; ctx.beginPath(); ctx.ellipse(rc.x, rc.y + sz * .42, sz * .42, sz * .08, 0, 0, 7); ctx.fill(); ctx.restore(); drawSlime(drag.lvl, rc.x, rc.y + sz * .35, sz, { ph: 3, ang: .45 }); }
+  if (drag) { const sz = L.grid.cs * .8, rc = drag; ctx.save(); ctx.fillStyle = "rgba(10,10,40,.3)"; ctx.beginPath(); ctx.ellipse(rc.x, rc.y + sz * .42, sz * .42, sz * .08, 0, 0, 7); ctx.fill(); ctx.restore(); drawSlime(drag.lvl, rc.x, rc.y + sz * .35, sz, { rune: getR(drag.ref), ph: 3, ang: .45 }); }
 }
 
 /* ===== Eingabe: ziehen zum Verbinden, tippen zum Ausrüsten ===== */
@@ -477,4 +479,4 @@ Promise.race([Promise.all([document.fonts.load("28px \"Caveat Brush\""), documen
 window.G = { S, R, buy, apply, tapSlime, update, render, get L() { return L; } };
 
 window.LGH_SPIEL = "schleimmerge"; window.LGH_EIGENER_KNOPF = true;
-window.LGH_ZEILEN = function () { return [{ text: "Ton", an: !S.mute, setze: function (v) { S.mute = !v; save(); } }].concat(DLC.besitz ? [{ text: "Runenwaffen", an: S.ench.runen, setze: function (v) { S.ench.runen = v; save(); } }] : []); };
+window.LGH_ZEILEN = function () { return [{ text: "Ton", an: !S.mute, setze: function (v) { S.mute = !v; save(); } }]; };

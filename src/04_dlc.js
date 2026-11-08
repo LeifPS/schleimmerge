@@ -1,9 +1,13 @@
 "use strict";
-/* ===== DLC „Runenschmiede“: Runenwaffen (neue Waffenreihe) und Verzauberungen =====
+/* ===== DLC „Runenschmiede“: Runenwaffen (zufällig dabei) und Verzauberungen =====
+   Runenwaffen: 20 % aller neuen Waffen (Kauf, Kiste) sind Runenwaffen, +50 % Schaden. Zwei Runenwaffen ergeben wieder eine Runenwaffe
+   (die nächste Stufe), Runenwaffe plus normale Waffe ergibt eine normale. Verzauberungen sind allgemein (nicht je Waffe), je Bahn wählbar.
+   Bezahlt wird mit Runensplittern: Du hast so viele, wie dein höchstes erreichtes Waffenlevel ist (S.best); jede Stufe kostet gleich viel
+   (ENCH_KOSTEN), unabhängig vom Spielfortschritt. Stufen lassen sich jederzeit zurücknehmen und anders verteilen.
    Gekauft wird nur im Leif Game Hub (dort mit Hexis, dem Guthaben des Hubs). Das Spiel fragt den Hub per postMessage
    ({lgh:"dlc", spiel, aktion:"frage"}) und bekommt Besitz und Preis zurück. Ohne Hub (oder ohne Kauf) bleibt alles wie vorher:
    Verzauberungen und Runenwaffen wirken dann nicht, der Spielstand bleibt aber erhalten. */
-const DLC_ID = "schleimmerge-runen", RUNEN_BONUS = .15, ENCH_MAX = 10;
+const DLC_ID = "schleimmerge-runen", RUNEN_BONUS = .5, RUNEN_CHANCE = .2, ENCH_MAX = 10, ENCH_KOSTEN = 2;
 const DLC = { besitz: false, preis: 0, guthaben: 0, antwort: false, imHub: window.parent !== window };
 const ENCH = [
   { k: "flamme", name: "Flamme", col: "#ff7a2a", txt: n => "+" + 12 * n + "% Schaden" },
@@ -15,7 +19,9 @@ const ENCH = [
 (function enchNorm() {
   const e = S.ench && typeof S.ench === "object" ? S.ench : {}, lv = {}, b = Array.isArray(e.bahn) ? e.bahn : [];
   for (const x of ENCH) lv[x.k] = clamp((e.lv && e.lv[x.k]) | 0, 0, ENCH_MAX);
-  S.ench = { lv, bahn: [0, 1, 2].map(i => ENCH.some(x => x.k === b[i]) ? b[i] : null), runen: e.runen !== false };
+  S.ench = { lv, bahn: [0, 1, 2].map(i => ENCH.some(x => x.k === b[i]) && b.indexOf(b[i]) === i ? b[i] : null) };
+  let over = ENCH.reduce((a, x) => a + lv[x.k], 0) * ENCH_KOSTEN - S.best;   // mehr Stufen als Runensplitter (alter Stand): von den höchsten Stufen herunter
+  while (over > 0) { const x = ENCH.reduce((m, y) => lv[y.k] > lv[m.k] ? y : m, ENCH[0]); if (!lv[x.k]) break; lv[x.k]--; over -= ENCH_KOSTEN; }
 })();
 
 /* ---------- Verbindung zum Hub ---------- */
@@ -31,8 +37,10 @@ if (DLC.imHub) {
   frage(); setTimeout(() => { if (!DLC.antwort) frage(); }, 2000); setTimeout(() => { if (!DLC.antwort) frage(); }, 6000);
 }
 function dlcKaufen() { try { window.parent.postMessage({ lgh: "dlc", spiel: "schleimmerge", aktion: "kaufen", id: DLC_ID }, "*"); } catch (e) { } }
-const runenAn = () => DLC.besitz && S.ench.runen;
-const dlcMult = () => runenAn() ? 1 + RUNEN_BONUS : 1;
+const runenAn = ru => DLC.besitz && !!ru;                              // ru: ist diese Waffe eine Runenwaffe?
+const dlcMult = ru => runenAn(ru) ? 1 + RUNEN_BONUS : 1;
+const neueRunenwaffe = () => DLC.besitz && Math.random() < RUNEN_CHANCE;   // neue Waffe aus Kauf oder Kiste
+const mergeRune = (a, b) => a && b ? 1 : 0;                              // Rune + Rune = Rune, sonst normal
 const btnSichtbar = () => DLC.besitz || (DLC.imHub && DLC.antwort && DLC.preis > 0);
 
 /* ---------- Runenwaffen: dieselben 84 Waffen als dunkler Stein mit leuchtenden Runen ---------- */
@@ -62,7 +70,7 @@ function runeSprite(l) {
   rg.addColorStop(0, hexA(col, .4)); rg.addColorStop(1, hexA(col, 0)); g.fillStyle = rg; g.fillRect(0, 0, o.width, o.height);
   return runeCache[l] = o;
 }
-const weaponFrameD = (l, tm) => runenAn() ? runeSprite(l) : weaponFrame(l, tm);
+const weaponFrameD = (l, tm, ru) => runenAn(ru) ? runeSprite(l) : weaponFrame(l, tm);
 function runeFx(c, l, u, col) {   // c: Kontext am Griff der Waffe, wie bei weaponFx
   const t = wTier(l), h = t === 7 ? [0, -.7] : HEAD[wType(l)], ax = h[0] * u, ay = h[1] * u, cc = col || RUNE_COL[t], pr = .5 + .5 * Math.sin(time * 3 + l);
   c.save(); c.globalCompositeOperation = "lighter";
@@ -75,7 +83,8 @@ function runeFx(c, l, u, col) {   // c: Kontext am Griff der Waffe, wie bei weap
 /* ---------- Verzauberungen ---------- */
 const enchLane = i => { if (!DLC.besitz) return null; const k = S.ench.bahn[i], e = ENCH.find(x => x.k === k); return e && S.ench.lv[k] > 0 ? e : null; };
 const enchCol = i => { const e = enchLane(i); return e ? e.col : null; };
-const enchCost = lv => Math.ceil(rewardOf(S.unlocked) * 6 * Math.pow(1.9, lv));
+const splitterGesamt = () => S.best;                                      // so viele Runensplitter wie das höchste erreichte Waffenlevel
+const splitterFrei = () => Math.max(0, S.best - ENCH_KOSTEN * ENCH.reduce((a, x) => a + S.ench.lv[x.k], 0));
 function enchBefore(i, dmg) {   // vor dem Schlag: Flamme und Frost
   const e = enchLane(i); if (!e) return dmg; const n = S.ench.lv[e.k], r = R[i], Ls = L.lanes[i], mx = Ls.monX, my = Ls.floorY - Ls.monH * .55;
   if (e.k === "flamme") { dmg *= 1 + .12 * n; sparks(mx - Ls.monH * .1, my, 4, "#ff9a3a", 140); }
@@ -95,9 +104,15 @@ function enchAfter(i, dmg) {   // nach dem Schlag: Blitz springt auf die anderen
 const enchCoin = i => { const e = enchLane(i); return e && e.k === "glueck" ? 1 + .1 * S.ench.lv.glueck : 1; };
 function enchUp(k) {
   const n = S.ench.lv[k]; if (n >= ENCH_MAX) return;
-  const cost = enchCost(n); if (S.coins < cost) { EM.msg = { t: "Zu wenig Münzen", at: time }; sfx.fail(); return; }
-  S.coins -= cost; S.ench.lv[k] = n + 1; sfx.buy(); sfx.merge(n + 4); save();
+  if (splitterFrei() < ENCH_KOSTEN) { EM.msg = { t: "Zu wenig Runensplitter", at: time }; sfx.fail(); return; }
+  S.ench.lv[k] = n + 1; sfx.pick(); sfx.merge(n + 4); save();
   EM.pulse = { k, at: time };
+}
+function enchDown(k) { const n = S.ench.lv[k]; if (n <= 0) return; S.ench.lv[k] = n - 1; sfx.move(); save(); EM.pulse = { k, at: time }; }
+function splitterIcon(c, cx, cy, r) {   // kleiner Runensplitter: Kristall mit Glanz
+  c.save(); c.lineJoin = "round"; c.lineWidth = Math.max(2, r * .16); c.strokeStyle = INK; c.fillStyle = "#b99cff";
+  c.beginPath(); c.moveTo(cx, cy - r); c.lineTo(cx + r * .7, cy - r * .1); c.lineTo(cx + r * .35, cy + r); c.lineTo(cx - r * .35, cy + r); c.lineTo(cx - r * .7, cy - r * .1); c.closePath(); c.fill(); c.stroke();
+  c.fillStyle = "rgba(255,255,255,.7)"; c.beginPath(); c.moveTo(cx - r * .05, cy - r * .7); c.lineTo(cx + r * .3, cy - r * .1); c.lineTo(cx - r * .05, cy - r * .1); c.closePath(); c.fill(); c.restore();
 }
 
 /* ---------- Zeichnen: Glyphen, Knopf, Fenster ---------- */
@@ -136,7 +151,7 @@ function drawEnchPanel() {
   const zone = (x, y, w, h, f) => Z.push({ x, y, w, h, f });
   zone(0, 0, 560, 640, () => { });   // Tippen ins Fenster schließt es nicht
   txt("Verzauberungen", 24, 36, 32, "#ffd23f", "left", "#141a3c");
-  ctx.drawImage(coinSprite(), 300, 20, 32, 32); txt(fmt(S.coins), 340, 36, 26, "#fff", "left", "#141a3c");
+  splitterIcon(ctx, 322, 36, 17); txt(splitterFrei() + " / " + splitterGesamt(), 346, 36, 26, "#fff", "left", "#141a3c");
   ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.fillStyle = "#3a3f78"; rr(ctx, 508, 14, 40, 40, 12); ctx.fill(); ctx.stroke();
   ctx.strokeStyle = "#fff"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(520, 26); ctx.lineTo(536, 42); ctx.moveTo(536, 26); ctx.lineTo(520, 42); ctx.stroke();
   zone(508, 14, 40, 40, () => { EM.open = false; });
@@ -146,30 +161,31 @@ function drawEnchPanel() {
     ctx.save(); ctx.translate(44, y + 29); ctx.scale(pul, pul); ctx.fillStyle = e.col; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 22, 0, 7); ctx.fill(); ctx.stroke(); enchGlyph(ctx, e.k, 0, 0, 16); ctx.restore();
     txt(e.name + "  Stufe " + n + "/" + ENCH_MAX, 80, y + 19, 24, "#fff", "left", "#141a3c");
     txt(n ? e.txt(n) : "noch nicht aufgewertet", 80, y + 43, 17, n ? "#bff7ff" : "#8f98c8", "left", "#141a3c");
-    const bx = 380, by = y + 7, bw = 160, bh = 44;
-    if (n >= ENCH_MAX) { ctx.fillStyle = "#3a3f78"; rr(ctx, bx, by, bw, bh, 12); ctx.fill(); ctx.stroke(); txt("Maximal", bx + bw / 2, by + bh / 2, 22, "#ffd23f", "center", "#141a3c"); }
+    const by = y + 7, bh = 44, mx = 380, mw = 44, px2 = 430, pw2 = 110;   // links "−" (Stufe zurücknehmen), rechts "+" mit Preis in Runensplittern
+    ctx.fillStyle = n > 0 ? "#4a55a8" : "#3a3f78"; rr(ctx, mx, by, mw, bh, 12); ctx.fill(); ctx.stroke(); txt("−", mx + mw / 2, by + bh / 2, 30, n > 0 ? "#fff" : "#7f88b8", "center", "#141a3c");
+    if (n > 0) zone(mx, by, mw, bh, () => enchDown(e.k));
+    if (n >= ENCH_MAX) { ctx.fillStyle = "#3a3f78"; rr(ctx, px2, by, pw2, bh, 12); ctx.fill(); ctx.stroke(); txt("Maximal", px2 + pw2 / 2, by + bh / 2, 20, "#ffd23f", "center", "#141a3c"); }
     else {
-      const cost = enchCost(n), can = S.coins >= cost; ctx.fillStyle = can ? "#2f9d63" : "#3a3f78"; rr(ctx, bx, by, bw, bh, 12); ctx.fill(); ctx.stroke();
-      txt("+", bx + 20, by + bh / 2, 28, can ? "#fff" : "#9aa2d0", "center", "#141a3c"); ctx.drawImage(coinSprite(), bx + 38, by + 8, 28, 28); txt(fmt(cost), bx + 72, by + bh / 2, 24, can ? "#fff" : "#aab2e0", "left", "#141a3c");
-      zone(bx, by, bw, bh, () => enchUp(e.k));
+      const can = splitterFrei() >= ENCH_KOSTEN; ctx.fillStyle = can ? "#2f9d63" : "#3a3f78"; rr(ctx, px2, by, pw2, bh, 12); ctx.fill(); ctx.stroke();
+      txt("+", px2 + 22, by + bh / 2, 28, can ? "#fff" : "#9aa2d0", "center", "#141a3c"); splitterIcon(ctx, px2 + 56, by + bh / 2, 13); txt(String(ENCH_KOSTEN), px2 + 76, by + bh / 2, 24, can ? "#fff" : "#aab2e0", "left", "#141a3c");
+      zone(px2, by, pw2, bh, () => enchUp(e.k));
     }
   });
-  txt("Welche Verzauberung trägt welche Bahn?", 24, 346, 20, "#ffd23f", "left", "#141a3c");
+  txt("Welche Verzauberung trägt welche Bahn?", 24, 340, 20, "#ffd23f", "left", "#141a3c"); txt("Jede Verzauberung kann nur eine Bahn tragen.", 24, 358, 14, "#8f98c8", "left", "#141a3c");
   for (let i = 0; i < 3; i++) {
-    const y = 364 + i * 56; txt("Bahn " + (i + 1), 24, y + 26, 22, "#fff", "left", "#141a3c");
+    const y = 366 + i * 56; txt("Bahn " + (i + 1), 24, y + 26, 22, "#fff", "left", "#141a3c");
     for (let c = 0; c < 5; c++) {
       const e = c ? ENCH[c - 1] : null, x = 112 + c * 86, can = !e || S.ench.lv[e.k] > 0, sel = (e ? e.k : null) === S.ench.bahn[i];
       ctx.save(); ctx.globalAlpha = can ? 1 : .35; ctx.lineWidth = sel ? 4 : 3; ctx.strokeStyle = sel ? "#ffd23f" : INK; ctx.fillStyle = sel ? "#4a55a8" : "#2b3470"; rr(ctx, x, y + 4, 76, 44, 12); ctx.fill(); ctx.stroke();
       if (e) { ctx.fillStyle = e.col; ctx.lineWidth = 2.5; ctx.strokeStyle = INK; ctx.beginPath(); ctx.arc(x + 38, y + 26, 16, 0, 7); ctx.fill(); ctx.stroke(); enchGlyph(ctx, e.k, x + 38, y + 26, 12); }
       else txt("keine", x + 38, y + 27, 20, "#c9d1ff", "center", "#141a3c");
-      ctx.restore(); if (can) zone(x, y + 4, 76, 44, () => { S.ench.bahn[i] = e ? e.k : null; sfx.move(); save(); });
+      ctx.restore(); if (can) zone(x, y + 4, 76, 44, () => { if (e) for (let j = 0; j < 3; j++) if (j !== i && S.ench.bahn[j] === e.k) S.ench.bahn[j] = null; S.ench.bahn[i] = e ? e.k : null; sfx.move(); save(); });   // jede Verzauberung trägt nur eine Bahn
     }
   }
   ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.fillStyle = "#2b3470"; rr(ctx, 12, 546, 536, 64, 14); ctx.fill(); ctx.stroke();
-  txt("Runenwaffen", 28, 568, 24, "#fff", "left", "#141a3c"); txt("Neue Waffenreihe, +" + Math.round(RUNEN_BONUS * 100) + "% Schaden", 28, 594, 17, "#bff7ff", "left", "#141a3c");
-  ctx.fillStyle = S.ench.runen ? "#2f9d63" : "#3a3f78"; rr(ctx, 380, 556, 160, 44, 12); ctx.fill(); ctx.stroke(); txt(S.ench.runen ? "An" : "Aus", 460, 579, 24, "#fff", "center", "#141a3c");
-  zone(380, 556, 160, 44, () => { S.ench.runen = !S.ench.runen; sfx.pick(); save(); });
-  txt("Die Verzauberung wirkt auf den Schleim, der in der Bahn kämpft.", 280, 626, 15, "#8f98c8", "center", "#141a3c");
+  txt("Runenwaffen", 28, 566, 24, "#fff", "left", "#141a3c"); txt(Math.round(RUNEN_CHANCE * 100) + "% der neuen Waffen, +" + Math.round(RUNEN_BONUS * 100) + "% Schaden", 28, 586, 16, "#bff7ff", "left", "#141a3c");
+  txt("Rune + Rune = Rune, Rune + normal = normal", 28, 604, 14, "#8f98c8", "left", "#141a3c");
+  txt("Runensplitter = dein höchstes Waffenlevel · jede Stufe kostet " + ENCH_KOSTEN + " · jederzeit umverteilbar", 280, 626, 14, "#8f98c8", "center", "#141a3c");
   if (EM.msg && time - EM.msg.at < 1.4) txt(EM.msg.t, 280, 332, 24, "#ffb0b0", "center", "#141a3c");
   ctx.restore(); EM.zones = Z;
 }

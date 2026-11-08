@@ -1196,16 +1196,14 @@ window.G = { S, R, buy, apply, tapSlime, update, render, get L() { return L; } }
 window.LGH_SPIEL = "schleimmerge"; window.LGH_EIGENER_KNOPF = true;
 window.LGH_ZEILEN = function () { return [{ text: "Ton", an: !S.mute, setze: function (v) { S.mute = !v; save(); } }]; };
 "use strict";
-/* ===== DLC „Runenschmiede“: Runenwaffen (zufällig dabei) und Verzauberungen =====
+/* ===== Runenschmiede: Runenwaffen (zufällig dabei) und Verzauberungen, für alle Spieler =====
    Runenwaffen: 20 % aller neuen Waffen (Kauf, Kiste) sind Runenwaffen, +50 % Schaden. Zwei Runenwaffen ergeben wieder eine Runenwaffe
    (die nächste Stufe), Runenwaffe plus normale Waffe ergibt eine normale. Verzauberungen sind allgemein (nicht je Waffe), je Bahn wählbar.
    Bezahlt wird mit Runensplittern: Du hast so viele, wie dein höchstes erreichtes Waffenlevel ist (S.best); jede Stufe kostet gleich viel
    (ENCH_KOSTEN), unabhängig vom Spielfortschritt. Stufen lassen sich jederzeit zurücknehmen und anders verteilen.
-   Gekauft wird nur im Leif Game Hub (dort mit Hexis, dem Guthaben des Hubs). Das Spiel fragt den Hub per postMessage
-   ({lgh:"dlc", spiel, aktion:"frage"}) und bekommt Besitz und Preis zurück. Ohne Hub (oder ohne Kauf) bleibt alles wie vorher:
-   Verzauberungen und Runenwaffen wirken dann nicht, der Spielstand bleibt aber erhalten. */
+   Früher war das ein Zusatzinhalt im Hub; jetzt gehört es zum Spiel (DLC.besitz bleibt als feste Schalter-Variable, damit der Rest des Codes unverändert ist). */
 const DLC_ID = "schleimmerge-runen", RUNEN_BONUS = .5, RUNEN_CHANCE = .2, ENCH_MAX = 10, ENCH_KOSTEN = 2;
-const DLC = { besitz: false, preis: 0, guthaben: 0, antwort: false, imHub: window.parent !== window };
+const DLC = { besitz: true, preis: 0, guthaben: 0, antwort: true, imHub: false };
 const ENCH = [
   { k: "flamme", name: "Flamme", col: "#ff7a2a", txt: n => "+" + 12 * n + "% Schaden" },
   { k: "frost", name: "Frost", col: "#6fe0ff", txt: n => 5 * n + "% Eisschlag (3× Schaden)" },
@@ -1221,26 +1219,14 @@ const ENCH = [
   while (over > 0) { const x = ENCH.reduce((m, y) => lv[y.k] > lv[m.k] ? y : m, ENCH[0]); if (!lv[x.k]) break; lv[x.k]--; over -= ENCH_KOSTEN; }
 })();
 
-/* ---------- Verbindung zum Hub ---------- */
-if (DLC.imHub) {
-  window.addEventListener("message", e => {
-    if (e.source !== window.parent) return; const d = e.data;
-    if (!d || d.lgh !== "dlc" || d.spiel !== "schleimmerge") return;
-    const k = (d.katalog || []).find(x => x.id === DLC_ID);
-    DLC.antwort = true; DLC.besitz = !!(k && k.besitz); DLC.preis = k ? k.preis | 0 : 0; DLC.guthaben = d.guthaben | 0;
-    if (!DLC.besitz) EM.open = false;
-  });
-  const frage = () => { try { window.parent.postMessage({ lgh: "dlc", spiel: "schleimmerge", aktion: "frage" }, "*"); } catch (e) { } };
-  frage(); setTimeout(() => { if (!DLC.antwort) frage(); }, 2000); setTimeout(() => { if (!DLC.antwort) frage(); }, 6000);
-}
-function dlcKaufen() { try { window.parent.postMessage({ lgh: "dlc", spiel: "schleimmerge", aktion: "kaufen", id: DLC_ID }, "*"); } catch (e) { } }
+function dlcKaufen() { }                                            // gibt es nicht mehr: alles ist freigeschaltet
 const runenAn = ru => DLC.besitz && !!ru;                              // ru: ist diese Waffe eine Runenwaffe?
 const dlcMult = ru => runenAn(ru) ? 1 + RUNEN_BONUS : 1;
 const neueRunenwaffe = () => DLC.besitz && Math.random() < RUNEN_CHANCE;   // neue Waffe aus Kauf oder Kiste
 const mergeRune = (a, b) => a && b ? 1 : 0;                              // Rune + Rune = Rune, sonst normal
-const mergeMax = () => DLC.besitz ? DLC_MAX : BASE_MAX;                    // Nur mit dem DLC lassen sich 87+87 zu Waffe 88 und 88+88 zu Waffe 89 verbinden
+const mergeMax = () => DLC.besitz ? DLC_MAX : BASE_MAX;                    // 87+87 ergibt Waffe 88 und 88+88 Waffe 89
 const listMax = () => Math.max(mergeMax(), S.best);                      // Liste: Besitzer sehen 89, alle sehen auch, was sie schon haben
-const btnSichtbar = () => DLC.besitz || (DLC.imHub && DLC.antwort && DLC.preis > 0);
+const btnSichtbar = () => true;
 
 /* ---------- Runenwaffen: dieselben 84 Waffen als dunkler Stein mit leuchtenden Runen ---------- */
 const RUNE_COL = ["#ffb35a", "#9fe6ff", "#ffe27a", "#7ff0ff", "#ff7a3a", "#e08cff", "#9aa6ff", "#ffffff"], runeCache = {};

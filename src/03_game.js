@@ -107,6 +107,7 @@ function layout() {
     const bh = cs * .62, tw = gw * .94, gp = bh * .16, bx0 = (W - tw) / 2, by0 = gy + gw + cs * .22; L.buy = { x: bx0, y: by0, w: tw - bh - gp, h: bh }; L.bin = { x: bx0 + tw - bh, y: by0, w: bh, h: bh };
     L.list = null;
   }
+  { const o = L.opt; L.ench = { x: o.x + o.w + (land ? 8 : 6), y: o.y, w: o.w, h: o.h }; }
   for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) L.cells.push({ x: gx + c * (cs + gap), y: gy + r * (cs + gap), w: cs, h: cs });
   L.grid = { x: gx, y: gy, w: gw, h: gw, cs };
   if (L.list) { L.list.itemH = L.list.w * 1.3; L.list.head = Math.min(48, H * .07); L.list.max = Math.max(0, L.list.head + MAXLVL * L.list.itemH - H + 12); listScroll = clamp(listScroll, 0, L.list.max); }
@@ -180,15 +181,17 @@ function buy() {
   if (S.coins < cost) { buyShake = 1; say("Zu wenig Münzen", b.x + b.w / 2, b.y - 10, "#ffb0b0", 24); sfx.fail(); return; }
   S.coins -= cost; S.buys[sl] = (S.buys[sl] | 0) + 1; S.grid[fc] = sl; gridPop[fc] = 1; const c = L.cells[fc]; puffs(c.x + c.w / 2, c.y + c.h * .8, 5, c.w); sparks(c.x + c.w / 2, c.y + c.h / 2, 6, "#bff7ff", 120); sfx.buy();
 }
-function hitMonster(i, dmg) {
+function hitMonster(i, dmg, chain) {
   const ln = S.lanes[i], r = R[i], Ls = L.lanes[i], crit = Math.random() < .12; if (crit) dmg *= 2;
-  ln.hp -= dmg; r.swing = 1; r.hit = 1; sfx.hit();
+  if (!chain) dmg = enchBefore(i, dmg);   // DLC Runenschmiede
+  ln.hp -= dmg; if (!chain) { r.swing = 1; sfx.hit(); } r.hit = 1;
   say(fmt(dmg), Ls.monX + (Math.random() - .5) * Ls.monH * .5, Ls.floorY - Ls.monH * (.5 + Math.random() * .4), crit ? "#ffe45a" : "#ffffff", crit ? 30 : 22);
   sparks(Ls.monX - Ls.monH * .2, Ls.floorY - Ls.monH * .45, crit ? 7 : 3, crit ? "#ffe45a" : "#ffffff", 120);
+  if (!chain) enchAfter(i, dmg);
   if (ln.hp <= 0) kill(i);
 }
 function kill(i) {
-  const ln = S.lanes[i], r = R[i], Ls = L.lanes[i], rew = rewardOf(ln.stage); S.coins += rew; S.kills++; r.dying = 1;
+  const ln = S.lanes[i], r = R[i], Ls = L.lanes[i], rew = Math.ceil(rewardOf(ln.stage) * enchCoin(i)); S.coins += rew; S.kills++; r.dying = 1;
   coinBurst(Ls.monX, Ls.floorY - Ls.monH * .5, Math.min(10, 4 + Math.floor(Math.log10(rew + 1))), Ls.monH * .2);
   puffs(Ls.monX, Ls.floorY - Ls.monH * .3, 6, Ls.monH); say("+" + fmt(rew), Ls.monX, Ls.floorY - Ls.monH * 1.05, "#ffd23f", 28);
   sfx.kill();
@@ -216,7 +219,7 @@ function update(dt) {
     const ln = S.lanes[i], r = R[i];
     r.swing = Math.max(0, r.swing - dt * 3.4); r.hit = Math.max(0, r.hit - dt * 5); r.spawn = Math.min(1, r.spawn + dt * 2.2); r.chestAnim = Math.max(0, r.chestAnim - dt * 1.1); r.chestBump = Math.max(0, r.chestBump - dt * 3);
     if (r.dying > 0) { r.dying -= dt * 1.8; if (r.dying <= 0) { r.dying = 0; nextMonster(i); } continue; }
-    if (ln.lvl > 0 && r.spawn >= 1) { r.atk += dt; if (r.atk >= BEAT) { r.atk -= BEAT; hitMonster(i, dpsOf(ln.lvl) * BEAT); } }
+    if (ln.lvl > 0 && r.spawn >= 1) { r.atk += dt; if (r.atk >= BEAT) { r.atk -= BEAT; hitMonster(i, dpsOf(ln.lvl) * BEAT * dlcMult()); } }
   }
   for (let i = 0; i < 9; i++) gridPop[i] = Math.max(0, gridPop[i] - dt * 3.2);
   for (let i = 0; i < 3; i++) lanePop[i] = Math.max(0, lanePop[i] - dt * 3.2);
@@ -282,7 +285,7 @@ function drawSlime(l, cx, by, size, o) {
   const dx = -SL_OX * k, dy = -SL_OY * k, dw = SL_W * k;
   ctx.drawImage(slimeSprite(l), dx, dy, dw, dw);
   const blink = ((time * .6 + l * .37) % 4) < .12; ctx.drawImage(faceSprite(l, o.attack ? 2 : blink ? 1 : 0), dx, dy, dw, dw);
-  const wk = size * 1.05 / WP_U; ctx.save(); ctx.translate(size * .42, -size * .2); ctx.rotate(o.ang != null ? o.ang : .25 + Math.sin(time * 2 + l) * .04); const wm = weaponMeta(l); ctx.drawImage(weaponFrame(l, time), -wm.ox * wk, -wm.oy * wk, wm.w * wk, wm.w * wk); if (wTier(l) >= 3 && wTier(l) < 7) weaponFx(ctx, l, wTier(l), WP_U * wk); ctx.restore();
+  const wk = size * 1.05 / WP_U; ctx.save(); ctx.translate(size * .42, -size * .2); ctx.rotate(o.ang != null ? o.ang : .25 + Math.sin(time * 2 + l) * .04); const wm = weaponMeta(l); ctx.drawImage(weaponFrameD(l, time), -wm.ox * wk, -wm.oy * wk, wm.w * wk, wm.w * wk); if (runenAn()) runeFx(ctx, l, WP_U * wk, o.col); else if (wTier(l) >= 3 && wTier(l) < 7) weaponFx(ctx, l, wTier(l), WP_U * wk); ctx.restore();
   ctx.restore();
 }
 function drawLocked(l, cx, by, size) { const k = size / SL_U; ctx.globalAlpha = .55; ctx.drawImage(slimeSil(l), cx - SL_OX * k, by - SL_OY * k, SL_W * k, SL_W * k); ctx.globalAlpha = 1; }
@@ -310,9 +313,10 @@ function drawLanes() {
     /* Schleim im Platz */
     if (ln.lvl && !isDrag) {
       const ss = sl.w, size = ss * .74, phase = 1 - r.swing, dx = r.swing > 0 ? Math.sin(clamp((phase - .2) / .5, 0, 1) * Math.PI) * ss * .2 : 0, po = lanePop[i] > 0 ? 1 + Math.sin(lanePop[i] * Math.PI) * .2 : 1;
-      drawSlime(ln.lvl, sl.x + ss * .44, sl.y + ss * .88, size, { ph: i * 2, dx, ang: swingAng(r), attack: r.swing > 0, pop: po });
+      drawSlime(ln.lvl, sl.x + ss * .44, sl.y + ss * .88, size, { ph: i * 2, dx, ang: swingAng(r), attack: r.swing > 0, pop: po, col: enchCol(i) });
       const ds = Math.max(14, ss * .17); ctx.drawImage(weaponSprite(14), sl.x + ss * .04, sl.y + ss * .03, ds * 1.25, ds * 1.25); txt(fmt(dpsOf(ln.lvl)), sl.x + ss * .04 + ds * 1.3, sl.y + ds * .72, ds, "#fff", "left");
     } else if (!ln.lvl && !isDrag) { const pu = .5 + .5 * Math.sin(time * 4); txt("frei", sl.x + sl.w / 2, sl.y + sl.h / 2, Math.max(16, sl.w * .2), "rgba(255,255,255," + (.45 + (hasG && !anyEq ? pu * .5 : 0)) + ")"); }
+    enchBadge(i, sl);
     if (drag && !isDrag && (!ln.lvl || ln.lvl === dl)) { ctx.save(); ctx.strokeStyle = "rgba(255,246,150," + (ln.lvl === dl ? .9 : .4) * (.5 + .5 * Math.sin(time * 6)) + ")"; ctx.lineWidth = 4; rr(ctx, sl.x + 2, sl.y + 2, sl.w - 4, sl.h - 4, sl.w * .14); ctx.stroke(); ctx.restore(); }
     else if (!drag && hasG && !anyEq && !ln.lvl) { ctx.save(); ctx.strokeStyle = "rgba(255,246,150," + (.3 + .5 * Math.sin(time * 4) * .5 + .25) + ")"; ctx.lineWidth = 4; rr(ctx, sl.x + 2, sl.y + 2, sl.w - 4, sl.h - 4, sl.w * .14); ctx.stroke(); ctx.restore(); }
     /* Monster */
@@ -403,7 +407,7 @@ function drawStageSel() {
 function render() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.lineJoin = ctx.lineCap = "round"; ctx.clearRect(0, 0, VW, VH);
   ctx.drawImage(bgC, 0, 0, VW, VH);
-  drawList(); drawCounter(); drawMute(); drawOpt(); drawStageSel(); drawGrid(); drawLanes(); drawBuy(); drawBin(); drawParts(); drawBanner();
+  drawList(); drawCounter(); drawMute(); drawOpt(); drawEnchBtn(); drawStageSel(); drawGrid(); drawLanes(); drawBuy(); drawBin(); drawParts(); drawBanner(); drawEnchPanel();
   if (drag) { const sz = L.grid.cs * .8, rc = drag; ctx.save(); ctx.fillStyle = "rgba(10,10,40,.3)"; ctx.beginPath(); ctx.ellipse(rc.x, rc.y + sz * .42, sz * .42, sz * .08, 0, 0, 7); ctx.fill(); ctx.restore(); drawSlime(drag.lvl, rc.x, rc.y + sz * .35, sz, { ph: 3, ang: .45 }); }
 }
 
@@ -417,6 +421,7 @@ function hitSlot(p) {
 }
 let down = null;
 cv.addEventListener("pointerdown", e => {
+  if (enchPointer(e)) return;
   e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (x) { } audio(); const p = pt(e); down = { x: p.x, y: p.y, t: performance.now(), moved: 0, mode: null, scroll: listScroll };
   if (L.mute && inR(p, L.mute)) { down.mode = "mute"; return; }
   if (L.opt && inR(p, L.opt)) { down.mode = "opt"; return; }
@@ -472,4 +477,4 @@ Promise.race([Promise.all([document.fonts.load("28px \"Caveat Brush\""), documen
 window.G = { S, R, buy, apply, tapSlime, update, render, get L() { return L; } };
 
 window.LGH_SPIEL = "schleimmerge"; window.LGH_EIGENER_KNOPF = true;
-window.LGH_ZEILEN = function () { return [{ text: "Ton", an: !S.mute, setze: function (v) { S.mute = !v; save(); } }]; };
+window.LGH_ZEILEN = function () { return [{ text: "Ton", an: !S.mute, setze: function (v) { S.mute = !v; save(); } }].concat(DLC.besitz ? [{ text: "Runenwaffen", an: S.ench.runen, setze: function (v) { S.ench.runen = v; save(); } }] : []); };
